@@ -1,0 +1,31 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?
+
+# Android build output
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+
+# iOS build output
+ios/App/Pods/
+ios/DerivedData/
+
+# Test files
+test-*.ts
+*.apk
+*.keystore
