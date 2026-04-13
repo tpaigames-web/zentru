@@ -291,7 +291,10 @@
   },
   "categories": {
     "addCategory": "添加分类",
-    "categoryName": "分类名称"
+    "categoryName": "分类名称",
+    "deleteTitle": "删除分类",
+    "deleteWithTx": "「{{name}}」有 {{count}} 笔交易记录关联到此分类。删除后这些交易将显示为「未分类」。确定删除吗？",
+    "deleteEmpty": "确定要删除「{{name}}」分类吗？"
   },
   "category": {
     "food": "餐饮",

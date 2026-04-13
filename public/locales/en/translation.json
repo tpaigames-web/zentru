@@ -291,7 +291,10 @@
   },
   "categories": {
     "addCategory": "Add Category",
-    "categoryName": "Category name"
+    "categoryName": "Category name",
+    "deleteTitle": "Delete Category",
+    "deleteWithTx": "\"{{name}}\" has {{count}} transactions linked to it. They will show as \"Uncategorized\" after deletion. Continue?",
+    "deleteEmpty": "Delete \"{{name}}\" category?"
   },
   "category": {
     "food": "Food & Dining",

@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Plus, Trash2, EyeOff, Eye } from 'lucide-react'
 import { SortableList } from '@/components/shared/SortableList'
 import { useCategoryStore } from '@/stores/useCategoryStore'
+import { useTransactionStore } from '@/stores/useTransactionStore'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
 import type { CategoryGroup } from '@/models/category'
 import { cn } from '@/lib/utils'
@@ -28,6 +30,8 @@ export default function CategoriesPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { categories, addCategory, updateCategory, deleteCategory } = useCategoryStore()
+  const { transactions } = useTransactionStore()
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; txCount: number } | null>(null)
 
   const [activeGroup, setActiveGroup] = useState<CategoryGroup>('expense')
   const [showForm, setShowForm] = useState(false)
@@ -53,8 +57,16 @@ export default function CategoriesPage() {
     await updateCategory(id, { isActive: !isActive })
   }
 
-  const handleDelete = async (id: string) => {
-    await deleteCategory(id)
+  const handleDeleteRequest = (id: string) => {
+    const cat = categories.find((c) => c.id === id)
+    const txCount = transactions.filter((tx) => tx.categoryId === id).length
+    setDeleteConfirm({ id, name: cat?.nameKey ? t(cat.nameKey) : cat?.name || '', txCount })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return
+    await deleteCategory(deleteConfirm.id)
+    setDeleteConfirm(null)
   }
 
   const inputClass = 'w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/50'
@@ -115,7 +127,7 @@ export default function CategoriesPage() {
               </button>
 
               <button
-                onClick={() => handleDelete(cat.id)}
+                onClick={() => handleDeleteRequest(cat.id)}
                 className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -192,6 +204,20 @@ export default function CategoriesPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          title={t('categories.deleteTitle')}
+          message={
+            deleteConfirm.txCount > 0
+              ? t('categories.deleteWithTx', { name: deleteConfirm.name, count: deleteConfirm.txCount })
+              : t('categories.deleteEmpty', { name: deleteConfirm.name })
+          }
+          confirmLabel={t('common.delete')}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteConfirm(null)}
+        />
       )}
     </div>
   )
