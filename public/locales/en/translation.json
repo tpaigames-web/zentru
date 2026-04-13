@@ -241,6 +241,7 @@
   },
   "import": {
     "selectPdf": "Click to upload PDF statement",
+    "batchSupport": "Select multiple files at once",
     "supportedBanks": "Supported banks",
     "privacyTitle": "Privacy Guarantee",
     "privacy1": "PDF is processed 100% on your device — never uploaded to any server",

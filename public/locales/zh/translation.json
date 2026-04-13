@@ -241,6 +241,7 @@
   },
   "import": {
     "selectPdf": "点击上传 PDF 账单",
+    "batchSupport": "支持一次选择多个文件",
     "supportedBanks": "支持以下银行",
     "privacyTitle": "隐私保障",
     "privacy1": "PDF 完全在您的设备上处理，不会上传到任何服务器",
