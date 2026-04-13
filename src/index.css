@@ -171,6 +171,12 @@ main {
 }
 .animate-shake { animation: shake 0.4s ease-in-out; }
 
+/* Remove focus outline on chart SVG elements */
+.recharts-surface, .recharts-wrapper, .recharts-sector, svg:focus, svg *:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Utility: hide scrollbar for horizontal scroll containers */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
