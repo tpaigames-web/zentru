@@ -30,7 +30,7 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
       setResult(data)
       setEditAmount(data.totalAmount?.toFixed(2) || '')
       setEditMerchant(data.merchant || '')
-      setEditDate(data.date || '')
+      setEditDate(data.date || new Date().toISOString().split('T')[0])
     } catch {
       if (source === 'camera') {
         setError(t('receipt.cameraFallback'))
@@ -52,7 +52,7 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
       setResult(data)
       setEditAmount(data.totalAmount?.toFixed(2) || '')
       setEditMerchant(data.merchant || '')
-      setEditDate(data.date || '')
+      setEditDate(data.date || new Date().toISOString().split('T')[0])
     } catch {
       setError(t('receipt.scanFailed'))
     }
@@ -119,11 +119,15 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
                 <input
                   type="number"
                   step="0.01"
-                  value={editAmount}
+                  value={editAmount === '0.00' || editAmount === '0' ? '' : editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-lg font-bold outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="0.00"
+                  placeholder={t('receipt.enterAmount')}
+                  autoFocus={!editAmount || editAmount === '0.00'}
                 />
+                {(!editAmount || editAmount === '0.00' || editAmount === '0') && (
+                  <p className="mt-1 text-xs text-warning">{t('receipt.amountNotDetected')}</p>
+                )}
               </div>
 
               {/* Editable merchant */}

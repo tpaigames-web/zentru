@@ -226,6 +226,8 @@
     "retry": "Retry",
     "useResult": "Use result",
     "cameraFallback": "Camera not available, use gallery",
+    "enterAmount": "Enter amount",
+    "amountNotDetected": "Amount not detected — please enter manually",
     "scanFailed": "Scan failed, please retry"
   },
   "onboarding": {

@@ -226,6 +226,8 @@
     "retry": "重新扫描",
     "useResult": "使用结果",
     "cameraFallback": "相机不可用，请使用相册",
+    "enterAmount": "请输入金额",
+    "amountNotDetected": "未识别到金额，请手动输入",
     "scanFailed": "识别失败，请重试"
   },
   "onboarding": {
