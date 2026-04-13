@@ -84,7 +84,7 @@ export async function parseStatement(file: File): Promise<ParsedStatement> {
     }
   }
 
-  const parser = BANK_PARSERS[bank] || parseMaybank
+  const parser = BANK_PARSERS[bank] || parseDDMMMBank
   const result = parser(rawText, bank)
 
   // Step 3: Mask sensitive data before returning
@@ -110,29 +110,19 @@ const BANK_PARSERS: Record<string, BankParser> = {
   hongleong: parseHongLeong,
   rhb: parseRHB,
   ambank: parseAmBank,
+  uob: parseDDMMMBank,
+  affin: parseDDMMMBank,
+  alliance: parseDDMMMBank,
+  bsn: parseDDMMMBank,
+  bankislam: parseDDMMMBank,
+  bankrakyat: parseDDMMMBank,
+  hsbc: parseDDMMMBank,
+  ocbc: parseDDMMMBank,
+  citibank: parseDDMMMBank,
+  scb: parseDDMMMBank,
+  aeon: parseDDMMMBank,
 }
 
-// Common date patterns in Malaysian statements
-// DD/MM, DD/MM/YY, DD/MM/YYYY, DD MMM, DD MMM YY, DD MMM YYYY
-const DATE_PATTERNS = [
-  /(\d{2}\/\d{2}\/\d{4})/,
-  /(\d{2}\/\d{2}\/\d{2})/,
-  /(\d{2}\/\d{2})/,
-  /(\d{2}\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{0,4})/i,
-]
-
-// Common amount pattern: digits with optional comma separators, 2 decimal places
-// Amount pattern used in extractTransactions via matchAll
-
-function parseAmount(amountStr: string): { value: number; isCredit: boolean } {
-  const cleaned = amountStr.replace(/,/g, '')
-  const match = cleaned.match(/(\d+\.\d{2})\s*(CR|DR)?/i)
-  if (!match) return { value: 0, isCredit: false }
-  return {
-    value: parseFloat(match[1]),
-    isCredit: match[2]?.toUpperCase() === 'CR',
-  }
-}
 
 function parseDateStr(dateStr: string, year?: number): string {
   const currentYear = year || new Date().getFullYear()
@@ -163,76 +153,10 @@ function parseDateStr(dateStr: string, year?: number): string {
   return dateStr
 }
 
-/**
- * Generic transaction line parser.
- * Looks for lines with a date at the start and an amount near the end.
- */
-function extractTransactions(text: string): ParsedTransaction[] {
-  const lines = text.split(/\n/)
-  const transactions: ParsedTransaction[] = []
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.length < 10) continue
-
-    // Try to find a date at/near the start
-    let dateMatch: string | null = null
-    for (const pattern of DATE_PATTERNS) {
-      const m = trimmed.match(pattern)
-      if (m && trimmed.indexOf(m[1]) < 15) {
-        dateMatch = m[1]
-        break
-      }
-    }
-
-    if (!dateMatch) continue
-
-    // Try to find amount
-    const amountMatches = [...trimmed.matchAll(/(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR|DR)?/gi)]
-    if (amountMatches.length === 0) continue
-
-    // Take the last amount match (usually the actual amount, not reference numbers)
-    const lastAmount = amountMatches[amountMatches.length - 1]
-    const { value, isCredit } = parseAmount(lastAmount[0])
-
-    if (value === 0) continue
-
-    // Extract description (between date and amount)
-    const dateEnd = trimmed.indexOf(dateMatch) + dateMatch.length
-    const amountStart = lastAmount.index || 0
-    const description = trimmed.substring(dateEnd, amountStart).trim()
-      .replace(/\s+/g, ' ')
-      .replace(/^[\s\-\.]+/, '')
-
-    if (!description || description.length < 2) continue
-
-    transactions.push({
-      date: parseDateStr(dateMatch),
-      description,
-      amount: value,
-      type: isCredit ? 'income' : 'expense',
-    })
-  }
-
-  return transactions
-}
-
 function extractCardNumber(text: string): string | undefined {
   const match = text.match(/\b(\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4})\b/)
     || text.match(/\b(\d{4}[\s\-*x]+\d{4})\b/)
   return match ? match[1].replace(/[\s\-]/g, '') : undefined
-}
-
-function extractDueDate(text: string): string | undefined {
-  const match = text.match(/(?:DUE\s*DATE|PAYMENT\s*DUE)[:\s]*(\d{2}[\/\s]\w+[\/\s]\d{2,4})/i)
-  if (match) return parseDateStr(match[1])
-  return undefined
-}
-
-function extractStatementDate(text: string): string | undefined {
-  const match = text.match(/(?:STATEMENT\s*DATE)[:\s]*(\d{2}[\/\s]\w+[\/\s]\d{2,4})/i)
-  if (match) return parseDateStr(match[1])
-  return undefined
 }
 
 // ---- Bank-specific parsers ----
@@ -353,33 +277,119 @@ function parseMaybank(text: string, bank: string): ParsedStatement {
   }
 }
 
-function parseGenericBank(text: string, bank: string): ParsedStatement {
+/**
+ * Generic parser for DD MMM format (RHB, Hong Leong, UOB, etc.)
+ * Pattern: DD MMM  [DD MMM]  DESCRIPTION  AMOUNT [CR]
+ */
+function parseDDMMMBank(text: string, bank: string): ParsedStatement {
+  // Extract dates
+  let statementDate: string | undefined
+  let dueDate: string | undefined
+  const stmtMatch = text.match(/(?:Statement\s*Date|Tarikh\s*Penyata)\s*[:\s]*(\d{1,2}\s+[A-Z]{3}\s+\d{2,4})/i)
+  if (stmtMatch) statementDate = parseDateStr(stmtMatch[1])
+  const dueMatch = text.match(/(?:Payment\s*Due\s*Date|Tarikh\s*Akhir\s*Bayar\w*|Bayar\s*Sebelum)\s*[:\s]*(\d{1,2}\s+[A-Z]{3}\s+\d{2,4})/i)
+  if (dueMatch) dueDate = parseDateStr(dueMatch[1])
+
+  // Card number
+  const cardNumber = extractCardNumber(text)
+
+  // Credit limit
+  let creditLimit: number | undefined
+  const limitMatch = text.match(/(?:Credit\s*Limit|Combine\s*Credit\s*Limit|Had\s*Kredit)\s*(?:\(RM\))?\s*[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i)
+  if (limitMatch) creditLimit = parseFloat(limitMatch[1].replace(/,/g, ''))
+
+  // Balance
+  let totalAmount: number | undefined
+  const balMatch = text.match(/(?:Current\s*Balance|Total\s*Balance\s*Due|Baki\s*Perlu|Outstanding\s*Balance|Jumlah\s*Terkini)\s*(?:\(RM\))?\s*[:\s]*(\d{1,3}(?:,\d{3})*\.\d{2})/i)
+  if (balMatch) totalAmount = parseFloat(balMatch[1].replace(/,/g, ''))
+
+  // Statement year
+  let stmtYear = new Date().getFullYear()
+  if (statementDate) {
+    const y = parseInt(statementDate.split('-')[0])
+    if (y > 2000) stmtYear = y
+  }
+
+  const transactions: ParsedTransaction[] = []
+
+  // Pattern 1: DD MMM  DD MMM  DESCRIPTION  AMOUNT [CR] (Hong Leong, RHB)
+  const pattern1 = /(\d{2}\s+[A-Z]{3})\s+\d{2}\s+[A-Z]{3}\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\s+[A-Z]{3}\s|\s+(?:SUB|TOTAL|CLOSING|PREVIOUS|OPENING|MINIMUM|Hong\s*Leong|RHB|Page|$))/gi
+
+  let m
+  while ((m = pattern1.exec(text)) !== null) {
+    const dateStr = m[1]
+    let description = m[2].trim()
+    const amount = parseFloat(m[3].replace(/,/g, ''))
+    const isCredit = !!m[4]
+
+    if (amount <= 0) continue
+    // Skip header/info lines
+    if (/INTEREST\s*(IS|RATE)|PREVIOUS\s*BAL|OPENING\s*BAL|FLEXI\s*PAYMENT.*:0\/|FPP\s*XFER|HLB-FLEXI/i.test(description)) continue
+
+    // Clean description
+    description = description.replace(/\s{2,}/g, ' ').replace(/MYS?\s*$/i, '').replace(/MY\s*$/i, '').trim()
+
+    transactions.push({
+      date: parseDateStr(dateStr, stmtYear),
+      description,
+      amount,
+      type: isCredit ? 'income' : 'expense',
+    })
+  }
+
+  // Pattern 2: DD MMM  DESCRIPTION  AMOUNT [CR] (UOB - single date)
+  if (transactions.length === 0) {
+    const pattern2 = /(\d{2}\s+[A-Z]{3})\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\s+[A-Z]{3}\s|\s+SUB-TOTAL|\s+MINIMUM|\s+PREVIOUS|\s+Page|\s*$)/gi
+
+    while ((m = pattern2.exec(text)) !== null) {
+      const dateStr = m[1]
+      let description = m[2].trim()
+      const amount = parseFloat(m[3].replace(/,/g, ''))
+      const isCredit = !!m[4]
+
+      if (amount <= 0) continue
+      if (/PREVIOUS\s*BAL|CREDIT\s*LIMIT|CREDIT\s*SHIELD/i.test(description)) continue
+
+      description = description.replace(/\s{2,}/g, ' ').replace(/MYS?\s*$/i, '').replace(/MY\s*$/i, '').trim()
+      if (description.length < 3) continue
+
+      transactions.push({
+        date: parseDateStr(dateStr, stmtYear),
+        description,
+        amount,
+        type: isCredit ? 'income' : 'expense',
+      })
+    }
+  }
+
   return {
     bank,
-    cardNumber: extractCardNumber(text),
-    statementDate: extractStatementDate(text),
-    dueDate: extractDueDate(text),
-    transactions: extractTransactions(text),
+    cardNumber,
+    statementDate,
+    dueDate,
+    totalAmount,
+    creditLimit,
+    transactions,
     rawText: text,
   }
 }
 
 function parseCIMB(text: string, bank: string): ParsedStatement {
-  return parseGenericBank(text, bank)
+  return parseDDMMMBank(text, bank)
 }
 
 function parsePublicBank(text: string, bank: string): ParsedStatement {
-  return parseGenericBank(text, bank)
+  return parseDDMMMBank(text, bank)
 }
 
 function parseHongLeong(text: string, bank: string): ParsedStatement {
-  return parseGenericBank(text, bank)
+  return parseDDMMMBank(text, bank)
 }
 
 function parseRHB(text: string, bank: string): ParsedStatement {
-  return parseGenericBank(text, bank)
+  return parseDDMMMBank(text, bank)
 }
 
 function parseAmBank(text: string, bank: string): ParsedStatement {
-  return parseGenericBank(text, bank)
+  return parseDDMMMBank(text, bank)
 }
