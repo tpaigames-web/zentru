@@ -11,6 +11,8 @@ import { CategoryIcon } from '@/components/shared/CategoryIcon'
 import { PaymentMethodPicker } from '@/components/shared/PaymentMethodPicker'
 import type { TransactionType } from '@/models/transaction'
 import { calculateCashback } from '@/services/cashback'
+import { getSmartRecommendations } from '@/services/cardRecommender'
+import { formatAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { ReceiptScan } from './ReceiptScan'
 import type { ScannedReceiptData } from '@/services/receiptScanner'
@@ -43,6 +45,27 @@ export default function NewTransactionPage() {
 
   const categories = type === 'income' ? getIncomeCategories() : getExpenseCategories()
 
+  // Live cashback preview
+  const cashbackPreview = (() => {
+    if (type !== 'expense' || !cardId || !amount || !categoryId) return null
+    const card = cards.find((c) => c.id === cardId)
+    if (!card?.cashbackRules?.length) return null
+    const result = calculateCashback(
+      { type: 'expense', amount: parseFloat(amount) || 0, categoryId, cardId } as Parameters<typeof calculateCashback>[0],
+      card,
+      new Map(),
+      0,
+    )
+    return result.amount > 0 ? result : null
+  })()
+
+  // Smart card recommendation for current category
+  const smartRec = (() => {
+    if (type !== 'expense' || !categoryId) return null
+    const rec = getSmartRecommendations(categoryId, cards, transactions)
+    return rec.bestCard
+  })()
+
   const handleReceiptResult = (data: ScannedReceiptData) => {
     if (data.totalAmount) setAmount(data.totalAmount.toFixed(2))
     if (data.merchant) setMerchant(data.merchant)
@@ -51,6 +74,35 @@ export default function NewTransactionPage() {
       setNotes(data.items.map((i) => `${i.name}: ${i.amount.toFixed(2)}`).join('\n'))
     }
     setShowReceiptScan(false)
+
+    // Auto-detect category from merchant
+    if (data.merchant) {
+      const allCats = type === 'income' ? getIncomeCategories() : getExpenseCategories()
+      const historyMatch = suggestFromHistory(data.merchant, transactions)
+      if (historyMatch) {
+        setCategoryId(historyMatch)
+      } else {
+        const detected = autoDetectCategory(data.merchant, allCats)
+        if (detected) setCategoryId(detected.id)
+      }
+
+      // Auto-detect tax
+      const taxCat = autoDetectTaxCategory(data.merchant)
+      if (taxCat) { setIsTaxDeductible(true); setTaxCategory(taxCat) }
+    }
+
+    // Auto-recommend best card after category is set
+    setTimeout(() => {
+      // Use the detected category to recommend a card
+      const catId = categoryId || getExpenseCategories()[getExpenseCategories().length - 1]?.id
+      if (catId && cards.length > 0) {
+        const rec = getSmartRecommendations(catId, cards, transactions)
+        if (rec.bestCard && !rec.bestCard.isCapReached) {
+          setCardId(rec.bestCard.cardId)
+          setAccountId('')
+        }
+      }
+    }, 100)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,6 +240,38 @@ export default function NewTransactionPage() {
           selectedAccountId={accountId}
           onChange={(cId, aId) => { setCardId(cId); setAccountId(aId) }}
         />
+
+        {/* Smart card recommendation */}
+        {type === 'expense' && categoryId && smartRec && smartRec.cardId !== cardId && !smartRec.isCapReached && (
+          <button
+            type="button"
+            onClick={() => { setCardId(smartRec.cardId); setAccountId('') }}
+            className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-left transition-colors hover:bg-primary/10"
+          >
+            <span className="text-lg">💡</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-primary">{t('transactions.recommendCard')}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {smartRec.cardName} — {smartRec.rate}% cashback
+                {smartRec.remainingCap !== null && ` (${formatAmount(smartRec.remainingCap, currency)} left)`}
+              </p>
+            </div>
+          </button>
+        )}
+
+        {/* Cashback preview */}
+        {cashbackPreview && (
+          <div className="flex items-center justify-between rounded-lg border border-success/30 bg-success/5 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎉</span>
+              <div>
+                <p className="text-xs font-medium text-success">{t('transactions.cashbackEarned')}</p>
+                <p className="text-[11px] text-muted-foreground">{cashbackPreview.rate}% cashback</p>
+              </div>
+            </div>
+            <span className="text-base font-bold text-success">+{formatAmount(cashbackPreview.amount, currency)}</span>
+          </div>
+        )}
 
         {/* Date */}
         <div>

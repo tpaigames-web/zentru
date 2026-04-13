@@ -86,6 +86,8 @@
     "creditCards": "信用卡",
     "accounts": "其他账户",
     "noTransactions": "暂无交易记录",
+    "recommendCard": "推荐使用这张卡",
+    "cashbackEarned": "可获得 Cashback！",
     "confirmDelete": "确定要删除这笔交易吗？此操作无法撤销。"
   },
   "analytics": {
