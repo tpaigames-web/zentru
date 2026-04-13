@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  PieChart, Pie, Cell, ResponsiveContainer,
+  PieChart, Pie, Cell, BarChart, Bar, YAxis, CartesianGrid, ResponsiveContainer,
 } from 'recharts'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
@@ -149,35 +149,22 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Income vs Expense — simple CSS bars, no Recharts */}
-          {(totalIncome > 0 || totalExpense > 0) && (() => {
-            const maxVal = Math.max(totalIncome, totalExpense, 1)
-            return (
-              <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2.5">
-                <h3 className="text-xs font-semibold">{t('analytics.incomeVsExpense')}</h3>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-muted-foreground">{t('transactions.income')}</span>
-                      <span className="text-xs font-bold text-success">{formatAmount(totalIncome, currency)}</span>
-                    </div>
-                    <div className="h-3 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-success" style={{ width: `${(totalIncome / maxVal) * 100}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-muted-foreground">{t('transactions.expense')}</span>
-                      <span className="text-xs font-bold text-destructive">{formatAmount(totalExpense, currency)}</span>
-                    </div>
-                    <div className="h-3 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-destructive" style={{ width: `${(totalExpense / maxVal) * 100}%` }} />
-                    </div>
-                  </div>
-                </div>
+          {/* Income vs Expense bar chart — view only, no tooltip */}
+          {(totalIncome > 0 || totalExpense > 0) && (
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
+              <h3 className="mb-2 text-xs font-semibold">{t('analytics.incomeVsExpense')}</h3>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[{ income: totalIncome, expense: totalExpense }]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                    <Bar dataKey="income" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} barSize={32} />
+                    <Bar dataKey="expense" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} barSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            )
-          })()}
+            </div>
+          )}
 
           <p className="text-[11px] text-muted-foreground text-center">{txCount} {t('analytics.txInPeriod')}</p>
         </div>
