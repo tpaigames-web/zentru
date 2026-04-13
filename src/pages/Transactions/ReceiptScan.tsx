@@ -16,6 +16,9 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<ScannedReceiptData | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editMerchant, setEditMerchant] = useState('')
+  const [editDate, setEditDate] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleCapture = async (source: 'camera' | 'gallery') => {
@@ -25,6 +28,9 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
       const imageData = await captureReceiptImage(source)
       const data = await scanReceiptImage(imageData)
       setResult(data)
+      setEditAmount(data.totalAmount?.toFixed(2) || '')
+      setEditMerchant(data.merchant || '')
+      setEditDate(data.date || '')
     } catch {
       if (source === 'camera') {
         setError(t('receipt.cameraFallback'))
@@ -44,6 +50,9 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
     try {
       const data = await scanReceiptFromFile(file)
       setResult(data)
+      setEditAmount(data.totalAmount?.toFixed(2) || '')
+      setEditMerchant(data.merchant || '')
+      setEditDate(data.date || '')
     } catch {
       setError(t('receipt.scanFailed'))
     }
@@ -104,28 +113,45 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
             </div>
 
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              {result.totalAmount !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-xs text-muted-foreground">{t('transactions.amount')}</span>
-                  <span className="text-lg font-bold">{formatAmount(result.totalAmount, currency)}</span>
-                </div>
-              )}
-              {result.merchant && (
-                <div className="flex justify-between">
-                  <span className="text-xs text-muted-foreground">{t('transactions.merchant')}</span>
-                  <span className="text-sm font-medium">{result.merchant}</span>
-                </div>
-              )}
-              {result.date && (
-                <div className="flex justify-between">
-                  <span className="text-xs text-muted-foreground">{t('transactions.date')}</span>
-                  <span className="text-sm">{result.date}</span>
-                </div>
-              )}
+              {/* Editable amount */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">{t('transactions.amount')} ({currency})</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-lg font-bold outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* Editable merchant */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">{t('transactions.merchant')}</label>
+                <input
+                  value={editMerchant}
+                  onChange={(e) => setEditMerchant(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Editable date */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">{t('transactions.date')}</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Items (read-only preview) */}
               {result.items && result.items.length > 0 && (
                 <div>
                   <span className="text-xs text-muted-foreground block mb-1">Items</span>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
                     {result.items.slice(0, 8).map((item, i) => (
                       <div key={i} className="flex justify-between text-xs">
                         <span className="truncate flex-1">{item.name}</span>
@@ -135,7 +161,8 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
                   </div>
                 </div>
               )}
-              {!result.totalAmount && !result.merchant && (
+
+              {!editAmount && !editMerchant && (
                 <div className="flex items-center gap-2 text-muted-foreground py-2">
                   <Receipt className="h-4 w-4" />
                   <p className="text-xs">{t('receipt.noData')}</p>
@@ -144,10 +171,15 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
             </div>
 
             <div className="flex gap-3">
-              <button onClick={() => setResult(null)} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors">
+              <button onClick={() => { setResult(null); setEditAmount(''); setEditMerchant(''); setEditDate('') }} className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors">
                 {t('receipt.retry')}
               </button>
-              <button onClick={() => onResult(result)} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+              <button onClick={() => onResult({
+                ...result,
+                totalAmount: editAmount ? parseFloat(editAmount) : result.totalAmount,
+                merchant: editMerchant || result.merchant,
+                date: editDate || result.date,
+              })} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
                 {t('receipt.useResult')}
               </button>
             </div>
