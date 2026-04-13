@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Plus, CreditCard, ScanLine } from 'lucide-react'
 import { useCardStore } from '@/stores/useCardStore'
 import { usePaymentStore } from '@/stores/usePaymentStore'
+import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { getMonthRange } from '@/lib/date'
 import type { CreditCard as CreditCardType } from '@/models/card'
 import { CardForm } from './CardForm'
 import { CardItem } from './CardItem'
@@ -18,7 +20,24 @@ export default function CardsPage() {
   const navigate = useNavigate()
   const { cards, addCard, updateCard, deleteCard } = useCardStore()
   const { addPayment } = usePaymentStore()
+  const { transactions } = useTransactionStore()
   const currency = useSettingsStore((s) => s.currency)
+
+  // Compute cashback info per card for this month
+  const { start, end } = getMonthRange()
+  const cardCashbackMap = useMemo(() => {
+    const map = new Map<string, { earned: number; totalCap: number | null; capReached: boolean; rulesCount: number }>()
+    for (const card of cards) {
+      if (!card.cashbackRules?.length) continue
+      const cardTx = transactions.filter((tx) => tx.cardId === card.id && tx.date >= start && tx.date <= end)
+      const earned = cardTx.reduce((s, tx) => s + (tx.cashbackAmount || 0), 0)
+      const totalCap = card.totalMonthlyCashbackCap || null
+      const capReached = totalCap ? earned >= totalCap * 0.9 : false
+      map.set(card.id, { earned, totalCap, capReached, rulesCount: card.cashbackRules.length })
+    }
+    return map
+  }, [cards, transactions, start, end])
+
   const [showForm, setShowForm] = useState(false)
   const [editingCard, setEditingCard] = useState<CreditCardType | undefined>()
   const [payingCard, setPayingCard] = useState<CreditCardType | undefined>()
@@ -101,6 +120,7 @@ export default function CardsPage() {
             <CardItem
               key={card.id}
               card={card}
+              cashbackInfo={cardCashbackMap.get(card.id)}
               onClick={(c) => navigate(`/cards/${c.id}`)}
               onEdit={handleEdit}
               onDelete={handleDelete}

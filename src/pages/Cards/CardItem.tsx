@@ -1,11 +1,20 @@
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2, Banknote, History } from 'lucide-react'
+import { Pencil, Trash2, Banknote, History, BadgePercent } from 'lucide-react'
 import type { CreditCard } from '@/models/card'
 import { formatAmount } from '@/lib/currency'
 import { getDaysUntilDue } from '@/lib/date'
+import { cn } from '@/lib/utils'
+
+interface CardCashbackInfo {
+  earned: number
+  totalCap: number | null  // null = no cap
+  capReached: boolean
+  rulesCount: number
+}
 
 interface CardItemProps {
   card: CreditCard
+  cashbackInfo?: CardCashbackInfo
   onClick: (card: CreditCard) => void
   onEdit: (card: CreditCard) => void
   onDelete: (id: string) => void
@@ -13,7 +22,7 @@ interface CardItemProps {
   onPaymentHistory: (card: CreditCard) => void
 }
 
-export function CardItem({ card, onClick, onEdit, onDelete, onPayment, onPaymentHistory }: CardItemProps) {
+export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPayment, onPaymentHistory }: CardItemProps) {
   const { t } = useTranslation()
   const utilization = card.creditLimit > 0 ? (card.currentBalance / card.creditLimit) * 100 : 0
   const daysUntilDue = getDaysUntilDue(card.dueDay)
@@ -34,14 +43,14 @@ export function CardItem({ card, onClick, onEdit, onDelete, onPayment, onPayment
           </div>
           <div className="flex gap-1">
             <button
-              onClick={() => onEdit(card)}
+              onClick={(e) => { e.stopPropagation(); onEdit(card) }}
               className="rounded-full bg-white/20 p-1.5 hover:bg-white/30 transition-colors"
               title={t('common.edit')}
             >
               <Pencil className="h-3.5 w-3.5 text-white" />
             </button>
             <button
-              onClick={() => onDelete(card.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete(card.id) }}
               className="rounded-full bg-white/20 p-1.5 hover:bg-white/30 transition-colors"
               title={t('common.delete')}
             >
@@ -82,10 +91,35 @@ export function CardItem({ card, onClick, onEdit, onDelete, onPayment, onPayment
           </p>
         </div>
 
+        {/* Cashback status */}
+        {cashbackInfo && cashbackInfo.rulesCount > 0 && (
+          <div className={cn(
+            'flex items-center justify-between rounded-lg px-3 py-2',
+            cashbackInfo.capReached ? 'bg-warning/10' : 'bg-success/10',
+          )}>
+            <div className="flex items-center gap-2">
+              <BadgePercent className={cn('h-4 w-4', cashbackInfo.capReached ? 'text-warning' : 'text-success')} />
+              <div>
+                <span className={cn('text-xs font-medium', cashbackInfo.capReached ? 'text-warning' : 'text-success')}>
+                  {formatAmount(cashbackInfo.earned, card.currency)}
+                </span>
+                {cashbackInfo.totalCap && (
+                  <span className="text-xs text-muted-foreground"> / {formatAmount(cashbackInfo.totalCap, card.currency)}</span>
+                )}
+              </div>
+            </div>
+            {cashbackInfo.capReached ? (
+              <span className="text-[10px] font-medium text-warning bg-warning/20 rounded px-1.5 py-0.5">CAP</span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">cashback</span>
+            )}
+          </div>
+        )}
+
         {/* Due date */}
         <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
           <span className="text-xs text-muted-foreground">{t('cards.daysUntilDue')}</span>
-          <span className={`text-sm font-semibold ${daysUntilDue <= 3 ? 'text-destructive' : daysUntilDue <= 7 ? 'text-warning' : ''}`}>
+          <span className={cn('text-sm font-semibold', daysUntilDue <= 3 ? 'text-destructive' : daysUntilDue <= 7 ? 'text-warning' : '')}>
             {daysUntilDue} {t('cards.days')}
           </span>
         </div>

@@ -93,78 +93,48 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Streak + Quick Entry */}
-      {(streak.current > 0 || quickTemplates.length > 0) && (
-        <div className="flex gap-3">
+      {/* Quick insights — horizontal scroll compact cards */}
+      {(streak.current > 0 || insights.length > 0 || quickTemplates.length > 0) && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
           {/* Streak */}
           {streak.current > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border bg-card px-4 py-3 shadow-sm">
-              <span className="text-2xl">🔥</span>
+            <div className="flex shrink-0 items-center gap-2 rounded-xl border bg-card px-3 py-2 shadow-sm">
+              <span className="text-lg">🔥</span>
               <div>
-                <p className="text-lg font-bold">{streak.current}</p>
-                <p className="text-xs text-muted-foreground">{t('dashboard.streakDays')}</p>
+                <p className="text-sm font-bold">{streak.current}</p>
+                <p className="text-[10px] text-muted-foreground">{t('dashboard.streakDays')}</p>
               </div>
             </div>
           )}
-
-          {/* Quick templates */}
-          {quickTemplates.length > 0 && (
-            <div className="flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="px-3 pt-2.5 pb-1">
-                <p className="text-xs font-semibold text-muted-foreground">{t('dashboard.quickAdd')}</p>
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto px-3 pb-2.5">
-                {quickTemplates.map((tpl) => {
-                  const cat = categoryMap.get(tpl.categoryId)
-                  return (
-                    <button
-                      key={tpl.id}
-                      onClick={() => navigate(`/transactions/new?tpl=${encodeURIComponent(tpl.merchant || '')}&cat=${tpl.categoryId}&card=${tpl.cardId || ''}&acc=${tpl.accountId || ''}&amt=${tpl.amount || ''}`)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
-                    >
-                      {cat && <CategoryIcon name={cat.icon} className="h-3.5 w-3.5" style={{ color: cat.color }} />}
-                      <span className="truncate max-w-20">{tpl.merchant}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Insights */}
-      {insights.length > 0 && (
-        <div className="space-y-2">
-          {insights.map((insight, i) => (
+          {/* Insights as chips */}
+          {insights.slice(0, 3).map((insight, i) => (
             <div
               key={i}
               className={cn(
-                'flex items-start gap-3 rounded-xl border px-4 py-3',
+                'flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2',
                 insight.type === 'warning' ? 'border-destructive/20 bg-destructive/5' :
                 insight.type === 'achievement' ? 'border-success/20 bg-success/5' :
-                insight.type === 'tip' ? 'border-primary/20 bg-primary/5' :
-                'border-border bg-card',
+                'border-primary/20 bg-primary/5',
               )}
             >
-              <CategoryIcon
-                name={insight.icon}
-                className={cn('h-4 w-4 mt-0.5 shrink-0',
-                  insight.type === 'warning' ? 'text-destructive' :
-                  insight.type === 'achievement' ? 'text-success' :
-                  'text-primary',
-                )}
-              />
-              <div>
-                <p className="text-sm font-medium">
-                  {t(insight.titleKey, insight.titleParams)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t(insight.descKey, insight.descParams)}
-                </p>
-              </div>
+              <CategoryIcon name={insight.icon} className={cn('h-3.5 w-3.5', insight.type === 'warning' ? 'text-destructive' : insight.type === 'achievement' ? 'text-success' : 'text-primary')} />
+              <p className="text-xs font-medium whitespace-nowrap">{t(insight.titleKey, insight.titleParams)}</p>
             </div>
           ))}
+          {/* Quick templates */}
+          {quickTemplates.map((tpl) => {
+            const cat = categoryMap.get(tpl.categoryId)
+            return (
+              <button
+                key={tpl.id}
+                onClick={() => navigate(`/transactions/new?tpl=${encodeURIComponent(tpl.merchant || '')}&cat=${tpl.categoryId}&card=${tpl.cardId || ''}&acc=${tpl.accountId || ''}&amt=${tpl.amount || ''}`)}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl border bg-card px-3 py-2 text-xs hover:bg-accent transition-colors shadow-sm"
+              >
+                {cat && <CategoryIcon name={cat.icon} className="h-3.5 w-3.5" style={{ color: cat.color }} />}
+                <span className="whitespace-nowrap">{tpl.merchant}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
