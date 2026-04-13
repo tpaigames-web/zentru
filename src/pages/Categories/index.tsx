@@ -53,13 +53,8 @@ export default function CategoriesPage() {
     await updateCategory(id, { isActive: !isActive })
   }
 
-  const handleDelete = async (id: string, isDefault: boolean) => {
-    if (isDefault) {
-      // Default categories can only be hidden, not deleted
-      await updateCategory(id, { isActive: false })
-    } else {
-      await deleteCategory(id)
-    }
+  const handleDelete = async (id: string) => {
+    await deleteCategory(id)
   }
 
   const inputClass = 'w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/50'
@@ -119,14 +114,12 @@ export default function CategoriesPage() {
                 {cat.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               </button>
 
-              {!cat.isDefault && (
-                <button
-                  onClick={() => handleDelete(cat.id, cat.isDefault)}
-                  className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
+              <button
+                onClick={() => handleDelete(cat.id)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
         />
