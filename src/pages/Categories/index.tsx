@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Plus, Trash2, EyeOff, Eye } from 'lucide-react'
+import { SortableList } from '@/components/shared/SortableList'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
 import type { CategoryGroup } from '@/models/category'
@@ -88,38 +89,47 @@ export default function CategoriesPage() {
         ))}
       </div>
 
-      {/* Category list */}
+      {/* Category list — draggable */}
       <div className="rounded-xl border bg-card shadow-sm divide-y">
-        {filteredCategories.map((cat) => (
-          <div key={cat.id} className={cn('flex items-center gap-3 px-4 py-3', !cat.isActive && 'opacity-40')}>
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-              style={{ backgroundColor: cat.color + '20' }}
-            >
-              <CategoryIcon name={cat.icon} className="h-4.5 w-4.5" style={{ color: cat.color }} />
-            </div>
-            <span className="flex-1 text-sm font-medium">
-              {cat.nameKey ? t(cat.nameKey) : cat.name}
-            </span>
-
-            <button
-              onClick={() => handleToggleActive(cat.id, cat.isActive)}
-              className="rounded-full p-1.5 text-muted-foreground hover:bg-accent transition-colors"
-              title={cat.isActive ? 'Hide' : 'Show'}
-            >
-              {cat.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            </button>
-
-            {!cat.isDefault && (
-              <button
-                onClick={() => handleDelete(cat.id, cat.isDefault)}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+        <SortableList
+          items={filteredCategories}
+          onReorder={async (reordered) => {
+            for (let i = 0; i < reordered.length; i++) {
+              if (reordered[i].sortOrder !== i + 1) {
+                await updateCategory(reordered[i].id, { sortOrder: i + 1 })
+              }
+            }
+          }}
+          renderItem={(cat) => (
+            <div className={cn('flex items-center gap-3 px-2 py-3', !cat.isActive && 'opacity-40')}>
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{ backgroundColor: cat.color + '20' }}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <CategoryIcon name={cat.icon} className="h-4.5 w-4.5" style={{ color: cat.color }} />
+              </div>
+              <span className="flex-1 text-sm font-medium">
+                {cat.nameKey ? t(cat.nameKey) : cat.name}
+              </span>
+
+              <button
+                onClick={() => handleToggleActive(cat.id, cat.isActive)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+              >
+                {cat.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               </button>
-            )}
-          </div>
-        ))}
+
+              {!cat.isDefault && (
+                <button
+                  onClick={() => handleDelete(cat.id, cat.isDefault)}
+                  className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        />
       </div>
 
       {/* Add button */}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Plus, Trash2, EyeOff, Eye } from 'lucide-react'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
+import { SortableList } from '@/components/shared/SortableList'
 import type { AccountType } from '@/models/account'
 import { cn } from '@/lib/utils'
 
@@ -73,38 +74,46 @@ export default function PaymentMethodsPage() {
         <h2 className="text-xl md:text-2xl font-bold">{t('payment.title')}</h2>
       </div>
 
-      {/* Payment methods list */}
+      {/* Payment methods list — draggable */}
       <div className="rounded-xl border bg-card shadow-sm divide-y">
-        {paymentMethods.map((acc) => (
-          <div key={acc.id} className={cn('flex items-center gap-3 px-4 py-3', !acc.isActive && 'opacity-40')}>
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-              style={{ backgroundColor: (acc.color || '#64748b') + '20' }}
-            >
-              <CategoryIcon name={acc.icon || 'Wallet'} className="h-4.5 w-4.5" style={{ color: acc.color || '#64748b' }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">{acc.name}</p>
-              <p className="text-xs text-muted-foreground">{t(`payment.${acc.type}`)}</p>
-            </div>
-
-            <button
-              onClick={() => handleToggle(acc.id, acc.isActive)}
-              className="rounded-full p-1.5 text-muted-foreground hover:bg-accent transition-colors"
-            >
-              {acc.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            </button>
-
-            {!acc.isDefault && (
-              <button
-                onClick={() => handleDelete(acc.id, acc.isDefault)}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+        <SortableList
+          items={paymentMethods}
+          onReorder={async (reordered) => {
+            for (let i = 0; i < reordered.length; i++) {
+              await updateAccount(reordered[i].id, {})
+            }
+          }}
+          renderItem={(acc) => (
+            <div className={cn('flex items-center gap-3 px-2 py-3', !acc.isActive && 'opacity-40')}>
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{ backgroundColor: (acc.color || '#64748b') + '20' }}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <CategoryIcon name={acc.icon || 'Wallet'} className="h-4.5 w-4.5" style={{ color: acc.color || '#64748b' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{acc.name}</p>
+                <p className="text-xs text-muted-foreground">{t(`payment.${acc.type}`)}</p>
+              </div>
+
+              <button
+                onClick={() => handleToggle(acc.id, acc.isActive)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+              >
+                {acc.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               </button>
-            )}
-          </div>
-        ))}
+
+              {!acc.isDefault && (
+                <button
+                  onClick={() => handleDelete(acc.id, acc.isDefault)}
+                  className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        />
       </div>
 
       {/* Add form */}
