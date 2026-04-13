@@ -5,13 +5,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
 import type { CashFlowPoint } from '@/services/analytics'
-import { formatAmount } from '@/lib/currency'
-import { useSettingsStore } from '@/stores/useSettingsStore'
 import { EXPENSE_COLOR, INCOME_COLOR } from '@/styles/chartTheme'
 
 interface CashFlowChartProps {
@@ -20,7 +17,6 @@ interface CashFlowChartProps {
 
 export function CashFlowChart({ data }: CashFlowChartProps) {
   const { t } = useTranslation()
-  const currency = useSettingsStore((s) => s.currency)
 
   if (data.every((d) => d.income === 0 && d.expense === 0)) {
     return (
@@ -45,18 +41,6 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
             tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             axisLine={false}
             tickLine={false}
-          />
-          <Tooltip
-            formatter={(value, name) => [
-              formatAmount(Number(value), currency),
-              name === 'income' ? t('transactions.income') : t('transactions.expense'),
-            ]}
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '12px',
-            }}
           />
           <ReferenceLine y={0} stroke="hsl(var(--border))" />
           <Bar dataKey="income" fill={INCOME_COLOR} radius={[4, 4, 0, 0]} barSize={20} />

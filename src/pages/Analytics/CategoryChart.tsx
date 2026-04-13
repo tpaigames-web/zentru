@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import type { CategoryTotal } from '@/services/analytics'
 import { formatAmount } from '@/lib/currency'
 import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -50,15 +50,6 @@ export function CategoryChart({ data }: CategoryChartProps) {
                 <Cell key={entry.categoryId} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip
-              formatter={(value) => formatAmount(Number(value), currency)}
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                fontSize: '12px',
-              }}
-            />
           </PieChart>
         </ResponsiveContainer>
       </div>

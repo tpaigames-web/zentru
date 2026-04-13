@@ -5,12 +5,9 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from 'recharts'
 import type { TrendPoint } from '@/services/analytics'
-import { formatAmount } from '@/lib/currency'
-import { useSettingsStore } from '@/stores/useSettingsStore'
 import { EXPENSE_COLOR, INCOME_COLOR } from '@/styles/chartTheme'
 
 interface TrendChartProps {
@@ -19,7 +16,6 @@ interface TrendChartProps {
 
 export function TrendChart({ data }: TrendChartProps) {
   const { t } = useTranslation()
-  const currency = useSettingsStore((s) => s.currency)
 
   if (data.every((d) => d.expense === 0 && d.income === 0)) {
     return (
@@ -44,18 +40,6 @@ export function TrendChart({ data }: TrendChartProps) {
             tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             axisLine={false}
             tickLine={false}
-          />
-          <Tooltip
-            formatter={(value, name) => [
-              formatAmount(Number(value), currency),
-              name === 'expense' ? t('transactions.expense') : t('transactions.income'),
-            ]}
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '12px',
-            }}
           />
           <Area
             type="monotone"

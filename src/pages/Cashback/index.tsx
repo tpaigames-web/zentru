@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from 'recharts'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
@@ -78,10 +77,6 @@ export default function CashbackPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  formatter={(value) => formatAmount(Number(value), currency)}
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                />
                 <Bar dataKey="cashback" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} barSize={24} name="Cashback" />
               </BarChart>
             </ResponsiveContainer>

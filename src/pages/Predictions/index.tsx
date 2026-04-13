@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, Line, ComposedChart, ReferenceLine,
 } from 'recharts'
 import { TrendingUp, Lightbulb } from 'lucide-react'
@@ -75,10 +75,6 @@ export default function PredictionsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  formatter={(value) => formatAmount(Number(value), currency)}
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                />
                 <Bar
                   dataKey="predictedExpense"
                   name="Expense"
@@ -116,10 +112,6 @@ export default function PredictionsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  formatter={(value) => formatAmount(Number(value), currency)}
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                />
                 <ReferenceLine y={0} stroke="hsl(var(--border))" />
                 <Bar dataKey="net" name="Net" radius={[4, 4, 0, 0]} barSize={18}>
                   {cashFlowForecast.map((entry, i) => (
