@@ -27,6 +27,9 @@
     "quickAdd": "快速记账",
     "dueToday": "今天到期！",
     "untilDue": "后到期",
+    "next10Days": "10天内待还款",
+    "recurringExpenses": "定期支出",
+    "taxRelief": "税务减免助手",
     "streakDays": "连续记账天数"
   },
   "cards": {

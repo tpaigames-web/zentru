@@ -27,6 +27,9 @@
     "quickAdd": "Quick Add",
     "dueToday": "Due today!",
     "untilDue": "until due",
+    "next10Days": "Next 10 Day's Payables",
+    "recurringExpenses": "Recurring Expenses",
+    "taxRelief": "Tax Relief Helper",
     "streakDays": "day streak"
   },
   "cards": {
