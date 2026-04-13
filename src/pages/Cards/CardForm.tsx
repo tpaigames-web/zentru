@@ -8,6 +8,7 @@ import type { CreditCard, CashbackRule } from '@/models/card'
 import type { ScannedCardData } from '@/services/cardScanner'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { ALL_BANKS } from '@/config/banks'
+import { getCardsByBank, type CardProduct } from '@/config/cardCatalog'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { CURRENCIES } from '@/lib/currency'
 import { cn } from '@/lib/utils'
@@ -42,6 +43,8 @@ export function CardForm({ card, scannedData, onSubmit, onClose }: CardFormProps
   const currency = useSettingsStore((s) => s.currency)
   const { getExpenseCategories } = useCategoryStore()
   const expenseCategories = getExpenseCategories()
+
+  const [availableProducts, setAvailableProducts] = useState<CardProduct[]>([])
 
   const [cashbackRules, setCashbackRules] = useState<CashbackRule[]>(
     card?.cashbackRules || [],
@@ -129,7 +132,15 @@ export function CardForm({ card, scannedData, onSubmit, onClose }: CardFormProps
 
             <div>
               <label className={labelClass}>{t('cards.bank')}</label>
-              <select {...register('bank')} className={inputClass}>
+              <select
+                {...register('bank')}
+                className={inputClass}
+                onChange={(e) => {
+                  const val = e.target.value
+                  register('bank').onChange(e)
+                  setAvailableProducts(val && val !== '__other' ? getCardsByBank(val) : [])
+                }}
+              >
                 <option value="">-- Select --</option>
                 {ALL_BANKS.map((b) => (
                   <option key={b.id} value={b.name}>{b.name}</option>
@@ -143,6 +154,38 @@ export function CardForm({ card, scannedData, onSubmit, onClose }: CardFormProps
               <label className={labelClass}>{t('cards.lastFour')}</label>
               <input {...register('lastFourDigits')} className={inputClass} maxLength={4} placeholder="1234" />
             </div>
+
+            {/* Card product picker from catalog */}
+            {availableProducts.length > 0 && (
+              <div className="col-span-2">
+                <label className={labelClass}>Choose Card Type</label>
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                  {availableProducts.map((prod) => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => {
+                        setValue('name', prod.fullName)
+                        setValue('color', prod.cardColor)
+                      }}
+                      className={cn(
+                        'flex shrink-0 flex-col items-start rounded-lg border p-2 text-left transition-all w-36',
+                        watch('name') === prod.fullName ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50',
+                      )}
+                    >
+                      <div className="w-full h-8 rounded mb-1.5" style={{ backgroundColor: prod.cardColor }} />
+                      <p className="text-[11px] font-medium truncate w-full">{prod.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="rounded px-1 py-0.5 text-[8px] font-bold text-white" style={{ backgroundColor: prod.network === 'visa' ? '#1A1F71' : prod.network === 'mastercard' ? '#EB001B' : '#64748b' }}>
+                          {prod.network.toUpperCase()}
+                        </span>
+                        {prod.cashbackRate && <span className="text-[9px] text-success">{prod.cashbackRate}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className={labelClass}>{t('cards.creditLimit')} ({currency})</label>
