@@ -72,6 +72,12 @@ export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPaym
         {/* Bank color bar with name + edit/delete */}
         <div className="flex items-center justify-between px-3 py-1.5" style={{ backgroundColor: bankColors.bg }}>
           <span className="text-[11px] font-bold tracking-wide" style={{ color: bankColors.text }}>{card.bank.toUpperCase()}</span>
+          <div className="flex items-center gap-2">
+            {card.productName && (
+              <span className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-medium" style={{ color: bankColors.text }}>
+                {card.productName}
+              </span>
+            )}
           <div className="flex gap-1">
             <button onClick={(e) => { e.stopPropagation(); onEdit(card) }} className="rounded-full bg-white/15 p-1 hover:bg-white/30">
               <Pencil className="h-2.5 w-2.5" style={{ color: bankColors.text }} />
@@ -79,6 +85,7 @@ export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPaym
             <button onClick={(e) => { e.stopPropagation(); onDelete(card.id) }} className="rounded-full bg-white/15 p-1 hover:bg-white/30">
               <Trash2 className="h-2.5 w-2.5" style={{ color: bankColors.text }} />
             </button>
+          </div>
           </div>
         </div>
 

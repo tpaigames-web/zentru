@@ -166,9 +166,15 @@ export function CashbackView() {
 
   if (cashbackCards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-        <p className="text-sm">No cards with cashback rules</p>
-        <p className="text-xs mt-1">Edit a card to add cashback rules</p>
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-sm text-muted-foreground">No cards with cashback rules</p>
+        <p className="text-xs text-muted-foreground mt-1">Add a card and configure cashback rules</p>
+        <button
+          onClick={() => navigate('/cards')}
+          className="mt-4 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Credit Card
+        </button>
       </div>
     )
   }

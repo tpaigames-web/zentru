@@ -40,6 +40,7 @@ export interface CreditCard {
   icon?: string
   isActive: boolean
   notes?: string
+  productName?: string  // e.g. "SUTERA VISA PLATINUM" — detected from PDF or selected from catalog
   cashbackRules?: CashbackRule[]
   totalMonthlyCashbackCap?: number
   actualCashbackReceived?: number  // user manually entered actual cashback

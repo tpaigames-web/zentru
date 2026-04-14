@@ -18,6 +18,7 @@ export interface ParsedTransaction {
 export interface ParsedStatement {
   bank: string
   cardNumber?: string
+  cardProductName?: string  // e.g. "SUTERA VISA PLATINUM", "GRAB MASTERCARD"
   statementDate?: string
   totalAmount?: number
   minimumPayment?: number
@@ -87,6 +88,11 @@ export async function parseStatement(file: File): Promise<ParsedStatement> {
   const parser = BANK_PARSERS[bank] || parseDDMMMBank
   const result = parser(rawText, bank)
 
+  // Step 2.5: Detect card product name from text
+  if (!result.cardProductName) {
+    result.cardProductName = detectCardProductName(rawText)
+  }
+
   // Step 3: Mask sensitive data before returning
   if (result.cardNumber && result.cardNumber.length > 4) {
     // Only keep last 4 digits
@@ -123,6 +129,49 @@ const BANK_PARSERS: Record<string, BankParser> = {
   aeon: parseDDMMMBank,
 }
 
+
+/**
+ * Detect specific card product name from PDF text.
+ * e.g. "SUTERA VISA PLATINUM", "GRAB MASTERCARD", "ONE VISA CARD"
+ */
+function detectCardProductName(text: string): string | undefined {
+  const patterns = [
+    // Specific product names
+    /SUTERA\s+VISA\s+PLATINUM/i,
+    /WISE\s+VISA\s+(?:GOLD|PLATINUM)/i,
+    /GSC\s+(?:HONG\s+LEONG\s+)?VISA\s+GOLD/i,
+    /ESSENTIAL\s+(?:VISA|MASTERCARD)/i,
+    /GRAB\s+MASTER\w*/i,
+    /SHELL\s+VISA/i,
+    /QUANTUM\s+(?:VISA|MASTERCARD)/i,
+    /PETRON\s+VISA/i,
+    /ONE\s+VISA\s+(?:CARD|CLASSIC|PLATINUM)/i,
+    /EVOL\s+(?:VISA|CARD)/i,
+    /YOLO\s+VISA/i,
+    /ZENITH\s+MASTER\w*/i,
+    /SIMPLY\s+(?:VISA|CASH)/i,
+    /CASH\s+(?:REBATE|BACK)\s+(?:VISA|MASTER\w*)\s*(?:PLATINUM|GOLD|CLASSIC)?/i,
+    /WORLD\s+MASTER\w*/i,
+    /VISA\s+(?:SIGNATURE|INFINITE)/i,
+    /PREMIER\s+VISA\s+INFINITE/i,
+    /FC\s+BARCELONA/i,
+    /IKHWAN\s+(?:GOLD|PLATINUM)/i,
+    /AMANAH\s+MPOWER/i,
+    /JUSTONE\s+PLATINUM/i,
+    /LIVERPOOL\s+FC/i,
+    /MEMBER\s+PLUS/i,
+    /BIKER\s+(?:GOLD|INFINITE)/i,
+    /DUO\s+VISA/i,
+    /TRUE\s+VISA/i,
+  ]
+
+  for (const p of patterns) {
+    const m = text.match(p)
+    if (m) return m[0].toUpperCase()
+  }
+
+  return undefined
+}
 
 function parseDateStr(dateStr: string, year?: number): string {
   const currentYear = year || new Date().getFullYear()

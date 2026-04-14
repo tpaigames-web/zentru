@@ -4,6 +4,7 @@ import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck } from 'lu
 import { useNavigate } from 'react-router'
 import { parseStatement, type ParsedStatement, type ParsedTransaction } from '@/services/pdfParser'
 import { autoDetectCategory } from '@/services/autoCategory'
+import { matchCardProduct } from '@/config/cardCatalog'
 import { calculateCashback } from '@/services/cashback'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
@@ -73,8 +74,32 @@ export default function ImportPage() {
       const pdfDueDay = result.dueDate ? parseInt(result.dueDate.split('-')[2]) || 20 : 20
       const pdfBillingDay = result.statementDate ? parseInt(result.statementDate.split('-')[2]) || 1 : 1
 
+      // Try to match card product from catalog using PDF-detected product name
+      const catalogMatch = result.cardProductName
+        ? matchCardProduct(bankLabel, result.cardProductName)
+        : undefined
+
+      const cardName = catalogMatch?.fullName || (result.cardProductName ? `${bankLabel} ${result.cardProductName}` : `${bankLabel} Card`)
+      const cardColor = catalogMatch?.cardColor || '#3b82f6'
+
+      // Auto-fill cashback rules from catalog
+      let cashbackRules: { categoryId: string; rate: number; monthlyCap?: number }[] | undefined
+      let totalMonthlyCashbackCap: number | undefined
+      if (catalogMatch?.defaultRules) {
+        const allCats = useCategoryStore.getState().categories
+        cashbackRules = catalogMatch.defaultRules.map((r) => {
+          let catId = r.categoryKey
+          if (catId !== '*') {
+            const match = allCats.find((c) => c.nameKey === catId)
+            catId = match?.id || '*'
+          }
+          return { categoryId: catId, rate: r.rate, monthlyCap: r.monthlyCap }
+        })
+        totalMonthlyCashbackCap = catalogMatch.defaultTotalCap
+      }
+
       const newCard = await addCard({
-        name: `${bankLabel} Card`,
+        name: cardName,
         bank: bankLabel,
         lastFourDigits: last4 || '',
         creditLimit: result.creditLimit || 0,
@@ -83,8 +108,11 @@ export default function ImportPage() {
         dueDay: pdfDueDay,
         interestRate: 18,
         currency,
-        color: '#3b82f6',
+        color: cardColor,
         isActive: true,
+        productName: result.cardProductName || undefined,
+        cashbackRules,
+        totalMonthlyCashbackCap,
         notes: 'Auto-created from PDF import',
       })
       return newCard.id
