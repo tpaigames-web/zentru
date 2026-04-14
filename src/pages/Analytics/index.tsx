@@ -7,7 +7,9 @@ import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { getCategoryTotals, getMerchantTotals } from '@/services/analytics'
+import { getCategoryTotals, getMerchantTotals, getCategoryChange } from '@/services/analytics'
+import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
+import { Search } from 'lucide-react'
 import { getCardCashbackRanking, getCategoryCashbackBreakdown } from '@/services/cashback'
 import { formatAmount } from '@/lib/currency'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
@@ -26,11 +28,40 @@ export default function AnalyticsPage() {
 
   const [activeTab, setActiveTab] = useState<ReportTab>('overview')
   const [dateRange, setDateRange] = useState<DateRange>(getQuickRange('this_month'))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
 
-  const filteredTx = useMemo(
-    () => transactions.filter((tx) => tx.date >= dateRange.start && tx.date <= dateRange.end),
-    [transactions, dateRange],
-  )
+  // Generate month buttons for quick switch (last 12 months + years)
+  const monthButtons = useMemo(() => {
+    const now = new Date()
+    const buttons: { label: string; start: number; end: number; isCurrent: boolean }[] = []
+    // Years
+    for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+      buttons.push({ label: String(y), start: new Date(y, 0, 1).getTime(), end: new Date(y, 11, 31, 23, 59, 59).getTime(), isCurrent: false })
+    }
+    // Last 12 months
+    for (let i = 0; i < 12; i++) {
+      const d = subMonths(now, i)
+      const s = startOfMonth(d)
+      const e = endOfMonth(d)
+      buttons.push({
+        label: format(d, 'MMM yy'),
+        start: s.getTime(),
+        end: e.getTime(),
+        isCurrent: s.getTime() === startOfMonth(now).getTime(),
+      })
+    }
+    return buttons
+  }, [])
+
+  const filteredTx = useMemo(() => {
+    let txs = transactions.filter((tx) => tx.date >= dateRange.start && tx.date <= dateRange.end)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      txs = txs.filter((tx) => tx.merchant?.toLowerCase().includes(q) || tx.notes?.toLowerCase().includes(q))
+    }
+    return txs
+  }, [transactions, dateRange, searchQuery])
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
@@ -47,6 +78,17 @@ export default function AnalyticsPage() {
   const cardCashback = useMemo(() => getCardCashbackRanking(filteredTx, cards), [filteredTx, cards])
   const categoryCashback = useMemo(() => getCategoryCashbackBreakdown(filteredTx, categories), [filteredTx, categories])
 
+  // Category change vs previous period
+  const prevStart = useMemo(() => subMonths(new Date(dateRange.start), 1), [dateRange.start])
+  const expenseChanges = useMemo(
+    () => getCategoryChange(expenseByCategory, transactions, categories, startOfMonth(prevStart).getTime(), endOfMonth(prevStart).getTime(), 'expense'),
+    [expenseByCategory, transactions, categories, prevStart],
+  )
+  const incomeChanges = useMemo(
+    () => getCategoryChange(incomeByCategory, transactions, categories, startOfMonth(prevStart).getTime(), endOfMonth(prevStart).getTime(), 'income'),
+    [incomeByCategory, transactions, categories, prevStart],
+  )
+
   const tabs: { key: ReportTab; labelKey: string }[] = [
     { key: 'overview', labelKey: 'analytics.overview' },
     { key: 'expenses', labelKey: 'analytics.expenses' },
@@ -58,9 +100,11 @@ export default function AnalyticsPage() {
   ]
 
 
-  const renderCategoryList = (data: ReturnType<typeof getCategoryTotals>, total: number) => (
+  const renderCategoryList = (data: ReturnType<typeof getCategoryTotals>, total: number, changes?: Map<string, number>) => (
     <div className="space-y-2 mt-4">
-      {data.slice(0, 10).map((item) => (
+      {data.slice(0, 10).map((item) => {
+        const change = changes?.get(item.categoryId)
+        return (
         <div key={item.categoryId} className="flex items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: item.color + '20' }}>
             <CategoryIcon name={item.icon} className="h-4 w-4" style={{ color: item.color }} />
@@ -68,7 +112,14 @@ export default function AnalyticsPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium truncate">{item.nameKey ? t(item.nameKey) : item.name}</span>
-              <span className="text-sm font-semibold">{formatAmount(item.total, currency)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold">{formatAmount(item.total, currency)}</span>
+                {change !== undefined && (
+                  <span className={cn('text-[10px] font-medium', change > 0 ? 'text-destructive' : 'text-success')}>
+                    {change > 0 ? '↑' : '↓'}{Math.abs(change).toFixed(0)}%
+                  </span>
+                )}
+              </div>
             </div>
             <div className="mt-1 flex items-center gap-2">
               <div className="h-1.5 flex-1 rounded-full bg-muted">
@@ -78,7 +129,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
-      ))}
+      )})}
       {total > 0 && (
         <div className="flex items-center justify-between border-t pt-2">
           <span className="text-sm text-muted-foreground">{t('common.all')}</span>
@@ -106,7 +157,41 @@ export default function AnalyticsPage() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl md:text-2xl font-bold shrink-0">{t('analytics.title')}</h2>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setShowSearch(!showSearch)} className="rounded-lg border p-1.5 hover:bg-accent">
+            <Search className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        </div>
+      </div>
+
+      {/* Search bar */}
+      {showSearch && (
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('common.search') + '...'}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+          autoFocus
+        />
+      )}
+
+      {/* Month quick switch — Finory style */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {monthButtons.map((btn, i) => (
+          <button
+            key={i}
+            onClick={() => setDateRange({ start: btn.start, end: btn.end, label: btn.label })}
+            className={cn(
+              'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors',
+              dateRange.start === btn.start && dateRange.end === btn.end
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent',
+            )}
+          >
+            {btn.label}
+          </button>
+        ))}
       </div>
 
       {/* Tabs - scrollable */}
@@ -177,7 +262,7 @@ export default function AnalyticsPage() {
           {expenseByCategory.length === 0 ? noData : (
             <>
               {renderPieChart(expenseByCategory)}
-              {renderCategoryList(expenseByCategory, totalExpense)}
+              {renderCategoryList(expenseByCategory, totalExpense, expenseChanges)}
             </>
           )}
         </div>
@@ -190,7 +275,7 @@ export default function AnalyticsPage() {
           {incomeByCategory.length === 0 ? noData : (
             <>
               {renderPieChart(incomeByCategory)}
-              {renderCategoryList(incomeByCategory, totalIncome)}
+              {renderCategoryList(incomeByCategory, totalIncome, incomeChanges)}
             </>
           )}
         </div>

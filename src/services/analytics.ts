@@ -206,3 +206,30 @@ export function getMerchantTotals(
     }))
     .sort((a, b) => b.total - a.total)
 }
+
+/**
+ * Calculate change % vs previous period for each category.
+ */
+export function getCategoryChange(
+  currentTotals: CategoryTotal[],
+  transactions: Transaction[],
+  categories: Category[],
+  prevStart: number,
+  prevEnd: number,
+  type: 'expense' | 'income' = 'expense',
+): Map<string, number> {
+  const prevTx = transactions.filter((tx) => tx.date >= prevStart && tx.date <= prevEnd)
+  const prevTotals = getCategoryTotals(prevTx, categories, type)
+  const prevMap = new Map(prevTotals.map((t) => [t.categoryId, t.total]))
+
+  const changes = new Map<string, number>()
+  for (const curr of currentTotals) {
+    const prev = prevMap.get(curr.categoryId) || 0
+    if (prev > 0) {
+      changes.set(curr.categoryId, ((curr.total - prev) / prev) * 100)
+    } else if (curr.total > 0) {
+      changes.set(curr.categoryId, 100)
+    }
+  }
+  return changes
+}
