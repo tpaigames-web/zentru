@@ -30,7 +30,8 @@
     "next10Days": "Next 10 Day's Payables",
     "recurringExpenses": "Recurring Expenses",
     "taxRelief": "Tax Relief Helper",
-    "streakDays": "day streak"
+    "streakDays": "day streak",
+    "detectedRecurring": "Detected Recurring Transactions"
   },
   "cards": {
     "title": "Credit Cards",

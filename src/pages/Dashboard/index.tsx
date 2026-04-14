@@ -11,7 +11,7 @@ import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
 import { getTaxSummary } from '@/services/taxDeduction'
-import { generateQuickTemplates, getStreak } from '@/services/quickEntry'
+import { generateQuickTemplates, getStreak, detectRecurringPatterns } from '@/services/quickEntry'
 import { generateInsights } from '@/services/insights'
 import { useData } from '@/data/DataProvider'
 import type { RecurringTransaction } from '@/models/recurring'
@@ -58,6 +58,7 @@ export default function DashboardPage() {
   // Insights + streak
   const streak = useMemo(() => getStreak(transactions), [transactions])
   const insights = useMemo(() => generateInsights(transactions, categories), [transactions, categories])
+  const detectedRecurring = useMemo(() => detectRecurringPatterns(transactions), [transactions])
   const quickTemplates = useMemo(() => generateQuickTemplates(transactions), [transactions])
 
   return (
@@ -232,6 +233,40 @@ export default function DashboardPage() {
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Detected Recurring — suggest adding */}
+      {detectedRecurring.length > 0 && recurringList.length === 0 && (
+        <div className="rounded-xl border bg-card shadow-sm">
+          <div className="flex items-center justify-between px-3 pt-3 pb-1">
+            <h3 className="text-xs font-semibold">🔄 {t('dashboard.detectedRecurring')}</h3>
+          </div>
+          <div className="divide-y">
+            {detectedRecurring.slice(0, 5).map((item, i) => {
+              const cat = categoryMap.get(item.categoryId)
+              return (
+                <div key={i} className="flex items-center gap-2.5 px-3 py-2.5">
+                  {cat && (
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: cat.color + '20' }}>
+                      <CategoryIcon name={cat.icon} className="h-3.5 w-3.5" style={{ color: cat.color }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{item.merchant}</p>
+                    <p className="text-[10px] text-muted-foreground">{item.monthsAppeared}/{item.totalMonths} months · {item.confidence}%</p>
+                  </div>
+                  <span className="text-xs font-bold">{formatAmount(item.avgAmount, currency)}</span>
+                  <button
+                    onClick={() => navigate(`/recurring`)}
+                    className="rounded bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary"
+                  >
+                    + Add
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import type { Transaction } from '@/models/transaction'
+import { startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 export interface QuickTemplate {
   id: string
@@ -115,4 +116,85 @@ export function getStreak(transactions: Transaction[]): { current: number; best:
   }
 
   return { current, best: Math.max(best, current) }
+}
+
+// ---- Recurring Pattern Detection ----
+
+export interface DetectedRecurring {
+  merchant: string
+  avgAmount: number
+  frequency: 'monthly' | 'weekly'
+  monthsAppeared: number
+  totalMonths: number
+  categoryId: string
+  cardId?: string
+  accountId?: string
+  lastDate: number
+  confidence: number // 0-100
+}
+
+/**
+ * Detect recurring transactions from history.
+ * Finds merchants that appear in 2+ consecutive months with similar amounts.
+ */
+export function detectRecurringPatterns(
+  transactions: Transaction[],
+  lookbackMonths = 6,
+  baseDate = new Date(),
+): DetectedRecurring[] {
+  if (transactions.length === 0) return []
+
+  // Group transactions by merchant per month
+  const merchantMonthly = new Map<string, { months: Set<string>; amounts: number[]; txs: Transaction[] }>()
+
+  for (let i = 0; i < lookbackMonths; i++) {
+    const monthDate = subMonths(baseDate, i)
+    const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`
+    const mStart = startOfMonth(monthDate).getTime()
+    const mEnd = endOfMonth(monthDate).getTime()
+
+    const monthTx = transactions.filter((tx) => tx.date >= mStart && tx.date <= mEnd && tx.merchant)
+
+    for (const tx of monthTx) {
+      const key = tx.merchant!.toLowerCase().trim()
+      const existing = merchantMonthly.get(key) || { months: new Set(), amounts: [], txs: [] }
+      existing.months.add(monthKey)
+      existing.amounts.push(tx.amount)
+      existing.txs.push(tx)
+      merchantMonthly.set(key, existing)
+    }
+  }
+
+  const results: DetectedRecurring[] = []
+
+  for (const [merchant, data] of merchantMonthly) {
+    // Must appear in at least 2 months
+    if (data.months.size < 2) continue
+
+    // Check if amounts are similar (within 20% of average)
+    const avg = data.amounts.reduce((s, a) => s + a, 0) / data.amounts.length
+    const consistent = data.amounts.every((a) => Math.abs(a - avg) / avg < 0.3)
+
+    if (!consistent && data.amounts.length > 3) continue // skip if amounts vary wildly
+
+    const lastTx = data.txs.sort((a, b) => b.date - a.date)[0]
+    const confidence = Math.min(100, Math.round((data.months.size / lookbackMonths) * 100))
+
+    results.push({
+      merchant: lastTx.merchant || merchant,
+      avgAmount: Math.round(avg * 100) / 100,
+      frequency: 'monthly',
+      monthsAppeared: data.months.size,
+      totalMonths: lookbackMonths,
+      categoryId: lastTx.categoryId,
+      cardId: lastTx.cardId,
+      accountId: lastTx.accountId,
+      lastDate: lastTx.date,
+      confidence,
+    })
+  }
+
+  return results
+    .filter((r) => r.confidence >= 30) // at least 30% confidence
+    .sort((a, b) => b.confidence - a.confidence || b.avgAmount - a.avgAmount)
 }

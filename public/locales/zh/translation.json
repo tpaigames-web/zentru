@@ -30,7 +30,8 @@
     "next10Days": "10天内待还款",
     "recurringExpenses": "定期支出",
     "taxRelief": "税务减免助手",
-    "streakDays": "连续记账天数"
+    "streakDays": "连续记账天数",
+    "detectedRecurring": "检测到的定期交易"
   },
   "cards": {
     "title": "信用卡管理",
