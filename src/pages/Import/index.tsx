@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck, Mail, CheckCircle2, AlertTriangle, FileSpreadsheet } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { parseStatement, type ParsedStatement, type ParsedTransaction } from '@/services/pdfParser'
+import { parseCSV } from '@/services/csvParser'
 import { autoDetectCategory } from '@/services/autoCategory'
 import { matchCardProduct } from '@/config/cardCatalog'
 import { calculateCashback } from '@/services/cashback'
@@ -19,7 +20,11 @@ const BANK_NAMES: Record<string, string> = Object.fromEntries([
   ['unknown', 'Unknown'],
 ])
 
+const verifiedBanks = ALL_BANKS.filter((b) => b.supportLevel === 'verified')
+const partialBanks = ALL_BANKS.filter((b) => b.supportLevel === 'partial')
+
 type ImportStep = 'upload' | 'preview' | 'done'
+type ImportMode = 'pdf' | 'csv'
 
 interface MergedTransaction extends ParsedTransaction {
   sourceFile: string
@@ -36,6 +41,8 @@ export default function ImportPage() {
   const currency = useSettingsStore((s) => s.currency)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<ImportMode>('pdf')
   const [step, setStep] = useState<ImportStep>('upload')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
@@ -74,7 +81,6 @@ export default function ImportPage() {
       const pdfDueDay = result.dueDate ? parseInt(result.dueDate.split('-')[2]) || 20 : 20
       const pdfBillingDay = result.statementDate ? parseInt(result.statementDate.split('-')[2]) || 1 : 1
 
-      // Try to match card product from catalog using PDF-detected product name
       const catalogMatch = result.cardProductName
         ? matchCardProduct(bankLabel, result.cardProductName)
         : undefined
@@ -82,7 +88,6 @@ export default function ImportPage() {
       const cardName = catalogMatch?.fullName || (result.cardProductName ? `${bankLabel} ${result.cardProductName}` : `${bankLabel} Card`)
       const cardColor = catalogMatch?.cardColor || '#3b82f6'
 
-      // Auto-fill cashback rules from catalog
       let cashbackRules: { categoryId: string; rate: number; monthlyCap?: number }[] | undefined
       let totalMonthlyCashbackCap: number | undefined
       if (catalogMatch?.defaultRules) {
@@ -121,7 +126,7 @@ export default function ImportPage() {
     return ''
   }
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
@@ -164,35 +169,75 @@ export default function ImportPage() {
         return
       }
 
-      setStatements(allStatements)
-      setMergedTx(allMerged)
-
-      // Duplicate check
-      const dupes = new Set<number>()
-      for (let i = 0; i < allMerged.length; i++) {
-        const tx = allMerged[i]
-        const txDate = new Date(tx.date).getTime()
-        const isDuplicate = existingTransactions.some((existing) => {
-          const sameAmount = Math.abs(existing.amount - tx.amount) < 0.01
-          const sameDate = Math.abs(existing.date - txDate) < 86400000
-          const sameMerchant = existing.merchant && tx.description &&
-            existing.merchant.toLowerCase().includes(tx.description.toLowerCase().substring(0, 10))
-          return sameAmount && sameDate && sameMerchant
-        })
-        if (isDuplicate) dupes.add(i)
-      }
-      setDuplicateIndices(dupes)
-
-      const nonDupes = new Set(allMerged.map((_, i) => i).filter((i) => !dupes.has(i)))
-      setSelectedTx(nonDupes)
-
-      setStep('preview')
+      finishParsing(allStatements, allMerged)
     } catch (err) {
       setError(`Failed to parse PDF: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
 
     setIsLoading(false)
     setLoadingProgress('')
+  }
+
+  const handleCsvSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const allMerged: MergedTransaction[] = []
+
+      for (const file of Array.from(files)) {
+        const text = await file.text()
+        const txs = parseCSV(text)
+        for (const tx of txs) {
+          allMerged.push({
+            ...tx,
+            sourceFile: file.name,
+            sourceBank: 'CSV',
+            matchedCardId: '',
+          })
+        }
+      }
+
+      if (allMerged.length === 0) {
+        setError('No transactions found. CSV must have columns: date, description, amount.')
+        setIsLoading(false)
+        return
+      }
+
+      finishParsing([], allMerged)
+    } catch (err) {
+      setError(`Failed to parse CSV: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+
+    setIsLoading(false)
+  }
+
+  const finishParsing = (stmts: ParsedStatement[], allMerged: MergedTransaction[]) => {
+    setStatements(stmts)
+    setMergedTx(allMerged)
+
+    // Duplicate check
+    const dupes = new Set<number>()
+    for (let i = 0; i < allMerged.length; i++) {
+      const tx = allMerged[i]
+      const txDate = new Date(tx.date).getTime()
+      const isDuplicate = existingTransactions.some((existing) => {
+        const sameAmount = Math.abs(existing.amount - tx.amount) < 0.01
+        const sameDate = Math.abs(existing.date - txDate) < 86400000
+        const sameMerchant = existing.merchant && tx.description &&
+          existing.merchant.toLowerCase().includes(tx.description.toLowerCase().substring(0, 10))
+        return sameAmount && sameDate && sameMerchant
+      })
+      if (isDuplicate) dupes.add(i)
+    }
+    setDuplicateIndices(dupes)
+
+    const nonDupes = new Set(allMerged.map((_, i) => i).filter((i) => !dupes.has(i)))
+    setSelectedTx(nonDupes)
+    setStep('preview')
   }
 
   const toggleTx = (index: number) => {
@@ -239,6 +284,8 @@ export default function ImportPage() {
         }
       }
 
+      const importSource = mode === 'csv' ? 'csv' as const : 'pdf' as const
+
       await addTransaction({
         type: tx.type,
         amount: tx.amount,
@@ -248,11 +295,11 @@ export default function ImportPage() {
         cardId: tx.matchedCardId || undefined,
         date: new Date(tx.date).getTime() || Date.now(),
         merchant: tx.description,
-        notes: `Imported from ${tx.sourceBank} PDF`,
+        notes: mode === 'csv' ? `Imported from CSV` : `Imported from ${tx.sourceBank} PDF`,
         cashbackAmount,
         cashbackRate,
         isConfirmed: false,
-        importSource: 'pdf',
+        importSource,
       })
       count++
     }
@@ -273,8 +320,28 @@ export default function ImportPage() {
         <h2 className="text-xl md:text-2xl font-bold">{t('settings.importData')}</h2>
       </div>
 
-      {/* Step: Upload */}
+      {/* Tab switcher */}
       {step === 'upload' && (
+        <div className="flex rounded-lg bg-muted p-1">
+          <button
+            onClick={() => { setMode('pdf'); setError('') }}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors', mode === 'pdf' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {t('import.tabPdf')}
+          </button>
+          <button
+            onClick={() => { setMode('csv'); setError('') }}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors', mode === 'csv' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            {t('import.tabCsv')}
+          </button>
+        </div>
+      )}
+
+      {/* Step: Upload — PDF */}
+      {step === 'upload' && mode === 'pdf' && (
         <div className="space-y-4">
           <div
             onClick={() => fileInputRef.current?.click()}
@@ -283,7 +350,28 @@ export default function ImportPage() {
             <Upload className="mb-3 h-10 w-10 text-primary/40" />
             <p className="text-sm font-medium">{t('import.selectPdf')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{t('import.batchSupport')}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('import.supportedBanks')}: {ALL_BANKS.length}+</p>
+          </div>
+
+          {/* Bank support levels */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm space-y-2.5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+              <span className="text-xs">
+                <span className="font-medium text-success">{t('import.bankVerified')}:</span>{' '}
+                <span className="text-muted-foreground">{verifiedBanks.map((b) => b.name).join(', ')}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+              <span className="text-xs">
+                <span className="font-medium text-warning">{t('import.bankPartial')}:</span>{' '}
+                <span className="text-muted-foreground">{partialBanks.map((b) => b.name).join(', ')}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">{t('import.bankOther')}</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 rounded-xl border border-success/20 bg-success/5 px-4 py-3">
@@ -291,19 +379,67 @@ export default function ImportPage() {
             <p className="text-xs text-muted-foreground">{t('import.privacyShort')}</p>
           </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+          <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handlePdfSelect} />
 
           {isLoading && (
             <div className="flex flex-col items-center justify-center gap-2 py-4">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span className="text-sm">{loadingProgress || t('import.parsing')}</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+              {/* Feedback entry on parse failure */}
+              <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+                <div>
+                  <p className="text-xs font-medium">{t('import.feedbackTitle')}</p>
+                </div>
+                <a
+                  href={`mailto:tpaigames@gmail.com?subject=${encodeURIComponent('Zentru PDF Import Feedback')}&body=${encodeURIComponent('Bank name: \nPDF parsed 0 transactions.\n\n(No transaction data is included in this feedback)')}`}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+                >
+                  <Mail className="h-3 w-3" />
+                  {t('import.feedbackButton')}
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step: Upload — CSV */}
+      {step === 'upload' && mode === 'csv' && (
+        <div className="space-y-4">
+          <div
+            onClick={() => csvInputRef.current?.click()}
+            className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-12 hover:border-primary/50 hover:bg-accent/30 transition-colors"
+          >
+            <FileSpreadsheet className="mb-3 h-10 w-10 text-primary/40" />
+            <p className="text-sm font-medium">{t('import.selectCsv')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('import.csvHint')}</p>
+          </div>
+
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <p className="text-xs font-medium mb-2">CSV Format</p>
+            <div className="rounded-lg bg-muted/50 px-3 py-2 font-mono text-[10px] text-muted-foreground">
+              <p>Date, Description, Amount</p>
+              <p>01/03/2026, GRAB FOOD, 25.90</p>
+              <p>02/03/2026, SHOPEE PAY, 150.00</p>
+              <p>05/03/2026, SALARY, -5000.00</p>
+            </div>
+          </div>
+
+          <input ref={csvInputRef} type="file" accept=".csv,.tsv,.txt" multiple className="hidden" onChange={handleCsvSelect} />
+
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center gap-2 py-4">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="text-sm">{t('import.parsing')}</span>
             </div>
           )}
 
@@ -332,19 +468,23 @@ export default function ImportPage() {
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <FileText className="h-5 w-5 text-primary" />
-              <p className="text-sm font-semibold">{fileCount} {fileCount === 1 ? 'file' : 'files'} · {mergedTx.length} transactions</p>
+              <p className="text-sm font-semibold">
+                {mode === 'csv' ? 'CSV' : `${fileCount} ${fileCount === 1 ? 'file' : 'files'}`} · {mergedTx.length} transactions
+              </p>
             </div>
-            <div className="space-y-1.5">
-              {statements.map((stmt, i) => {
-                const stmtTxCount = mergedTx.filter((tx) => tx.sourceBank === (BANK_NAMES[stmt.bank] || stmt.bank)).length
-                return (
-                  <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{BANK_NAMES[stmt.bank]} {stmt.cardNumber ? `(${stmt.cardNumber.slice(-4)})` : ''}</span>
-                    <span>{stmtTxCount} tx · {stmt.statementDate || ''}</span>
-                  </div>
-                )
-              })}
-            </div>
+            {statements.length > 0 && (
+              <div className="space-y-1.5">
+                {statements.map((stmt, i) => {
+                  const stmtTxCount = mergedTx.filter((tx) => tx.sourceBank === (BANK_NAMES[stmt.bank] || stmt.bank)).length
+                  return (
+                    <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{BANK_NAMES[stmt.bank]} {stmt.cardNumber ? `(${stmt.cardNumber.slice(-4)})` : ''}</span>
+                      <span>{stmtTxCount} tx · {stmt.statementDate || ''}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Transaction list */}
@@ -385,7 +525,7 @@ export default function ImportPage() {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{tx.date}</span>
-                      {fileCount > 1 && <span className="text-primary/60">· {tx.sourceBank}</span>}
+                      {tx.sourceBank !== 'CSV' && <span className="text-primary/60">· {tx.sourceBank}</span>}
                     </div>
                   </div>
                   <span className={cn(

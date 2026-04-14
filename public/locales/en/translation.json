@@ -279,7 +279,16 @@
     "getStarted": "Get Started"
   },
   "import": {
+    "tabPdf": "PDF Import",
+    "tabCsv": "CSV Import",
     "selectPdf": "Click to upload PDF statement",
+    "selectCsv": "Click to upload CSV file",
+    "csvHint": "Most bank online portals support CSV export — more reliable than PDF parsing",
+    "bankVerified": "Verified",
+    "bankPartial": "Partial support",
+    "bankOther": "Other banks: try CSV import",
+    "feedbackTitle": "Can't recognize your statement format?",
+    "feedbackButton": "Submit Feedback",
     "batchSupport": "Select multiple files at once",
     "supportedBanks": "Supported banks",
     "privacyTitle": "Privacy Guarantee",

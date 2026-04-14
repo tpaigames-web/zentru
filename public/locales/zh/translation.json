@@ -279,7 +279,16 @@
     "getStarted": "开始使用"
   },
   "import": {
+    "tabPdf": "PDF 导入",
+    "tabCsv": "CSV 导入",
     "selectPdf": "点击上传 PDF 账单",
+    "selectCsv": "点击上传 CSV 文件",
+    "csvHint": "大多数银行网银支持导出 CSV 格式，比 PDF 解析更可靠",
+    "bankVerified": "已验证",
+    "bankPartial": "部分支持",
+    "bankOther": "其他银行建议使用 CSV 导入",
+    "feedbackTitle": "无法识别你的账单格式？",
+    "feedbackButton": "提交反馈",
     "batchSupport": "支持一次选择多个文件",
     "supportedBanks": "支持以下银行",
     "privacyTitle": "隐私保障",
