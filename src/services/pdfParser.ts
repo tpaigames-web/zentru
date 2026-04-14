@@ -29,7 +29,11 @@ export interface ParsedStatement {
 }
 
 /**
- * Extract all text from a PDF file
+ * Extract all text from a PDF file using coordinate-based sorting.
+ *
+ * pdfjs getTextContent() returns items in document stream order, which can be
+ * wrong for multi-column PDFs (common in bank statements). We use the transform
+ * coordinates to sort items by position: group by Y (rows), sort by X within rows.
  */
 export async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
@@ -39,10 +43,44 @@ export async function extractPdfText(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
-    const text = content.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .join(' ')
-    pages.push(text)
+
+    // Extract items with coordinates
+    // transform: [scaleX, skewX, skewY, scaleY, x, y]
+    // PDF y-axis goes bottom-up, so we sort descending by y
+    const items: { str: string; x: number; y: number }[] = []
+    for (const item of content.items) {
+      if (!('str' in item) || !item.str) continue
+      const t = (item as { transform: number[] }).transform
+      if (t) {
+        items.push({ str: item.str, x: t[4], y: t[5] })
+      }
+    }
+
+    // Group by rows: items within ~3px of same Y are on the same line
+    const ROW_THRESHOLD = 3
+    items.sort((a, b) => b.y - a.y || a.x - b.x) // top-to-bottom, left-to-right
+
+    const rows: { str: string; x: number }[][] = []
+    let currentRow: { str: string; x: number }[] = []
+    let currentY = items[0]?.y ?? 0
+
+    for (const item of items) {
+      if (Math.abs(item.y - currentY) > ROW_THRESHOLD) {
+        if (currentRow.length > 0) rows.push(currentRow)
+        currentRow = []
+        currentY = item.y
+      }
+      currentRow.push({ str: item.str, x: item.x })
+    }
+    if (currentRow.length > 0) rows.push(currentRow)
+
+    // Sort items within each row by X, then join
+    const lines = rows.map((row) => {
+      row.sort((a, b) => a.x - b.x)
+      return row.map((r) => r.str).join(' ')
+    })
+
+    pages.push(lines.join('\n'))
   }
 
   return pages.join('\n\n--- PAGE BREAK ---\n\n')
@@ -173,8 +211,21 @@ function detectCardProductName(text: string): string | undefined {
   return undefined
 }
 
-function parseDateStr(dateStr: string, year?: number): string {
+function parseDateStr(dateStr: string, year?: number, stmtMonth?: number): string {
   const currentYear = year || new Date().getFullYear()
+
+  const months: Record<string, string> = {
+    JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+    JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12',
+  }
+
+  // Adjust year for cross-year statements (e.g. Jan statement with Dec transactions)
+  function adjustYear(parsedYear: number, txMonth: number): number {
+    if (stmtMonth !== undefined && stmtMonth <= 2 && txMonth >= 10) {
+      return parsedYear - 1
+    }
+    return parsedYear
+  }
 
   // DD/MM/YYYY
   let match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
@@ -184,19 +235,26 @@ function parseDateStr(dateStr: string, year?: number): string {
   match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{2})/)
   if (match) return `20${match[3]}-${match[2]}-${match[1]}`
 
-  // DD/MM (assume current year)
+  // DD/MM (assume statement year, adjust for cross-year)
   match = dateStr.match(/(\d{2})\/(\d{2})/)
-  if (match) return `${currentYear}-${match[2]}-${match[1]}`
-
-  // DD MMM YYYY
-  const months: Record<string, string> = {
-    JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
-    JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12',
-  }
-  match = dateStr.match(/(\d{2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2,4})?/i)
   if (match) {
-    const y = match[3] ? (match[3].length === 2 ? `20${match[3]}` : match[3]) : `${currentYear}`
-    return `${y}-${months[match[2].toUpperCase()]}-${match[1]}`
+    const txMonth = parseInt(match[2])
+    const y = adjustYear(currentYear, txMonth)
+    return `${y}-${match[2]}-${match[1]}`
+  }
+
+  // DD MMM [YYYY]
+  match = dateStr.match(/(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2,4})?/i)
+  if (match) {
+    const monthStr = months[match[2].toUpperCase()]
+    const txMonth = parseInt(monthStr)
+    let y: number
+    if (match[3]) {
+      y = match[3].length === 2 ? 2000 + parseInt(match[3]) : parseInt(match[3])
+    } else {
+      y = adjustYear(currentYear, txMonth)
+    }
+    return `${y}-${monthStr}-${match[1].padStart(2, '0')}`
   }
 
   return dateStr
@@ -252,48 +310,52 @@ function parseMaybank(text: string, bank: string): ParsedStatement {
   const limitMatch = text.match(/CREDIT\s*LIMIT\s*\(RM\)\s+(\d{1,3}(?:,\d{3})*)/i)
   if (limitMatch) creditLimit = parseFloat(limitMatch[1].replace(/,/g, ''))
 
-  // Extract statement year from statement date for DD/MM parsing
+  // Extract statement year and month for date parsing
   let stmtYear = new Date().getFullYear()
+  let stmtMonth: number | undefined
   if (statementDate) {
-    const y = parseInt(statementDate.split('-')[0])
+    const parts = statementDate.split('-')
+    const y = parseInt(parts[0])
     if (y > 2000) stmtYear = y
+    stmtMonth = parseInt(parts[1])
   }
 
-  // Extract transactions using regex on continuous text
-  // Pattern: DD/MM followed by DD/MM followed by description followed by amount
-  const transactions: ParsedTransaction[] = []
-
+  // Extract transactions line by line
   // Maybank format: "DD/MM   DD/MM   DESCRIPTION   AMOUNT[CR]"
-  // The text from pdfjs has multiple spaces between fields
-  const txPattern = /(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})(CR)?(?=\s+\d{2}\/\d{2}\s|\s+TOTAL|\s+SUB\s*TOTAL|\s+YOUR|\s+JUMLAH|\s+Page|\s+00\d|\s+STATEMENT|\s*$)/gi
+  // With coordinate-sorted text, each transaction is on its own line
+  const transactions: ParsedTransaction[] = []
+  const lines = text.split('\n')
 
-  let match
-  while ((match = txPattern.exec(text)) !== null) {
-    const dateStr = match[1]
-    let description = match[2].trim()
-    const amount = parseFloat(match[3].replace(/,/g, ''))
-    const isCredit = !!match[4]
+  for (const line of lines) {
+    // Match: starts with DD/MM, followed by another DD/MM, then description, then amount at end
+    const m = line.match(/^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?\s*$/)
+    if (!m) continue
+
+    const dateStr = m[1]
+    let description = m[2].trim()
+    const amount = parseFloat(m[3].replace(/,/g, ''))
+    const isCredit = !!m[4]
 
     if (amount <= 0) continue
-
-    // Clean up description - remove trailing reference numbers like :006/006
+    // Clean up description
     description = description.replace(/\s*:\d{3}\/\d{3}\s*$/, '').trim()
-
-    // Skip interest rate lines
     if (/INTEREST\s*RATE/i.test(description)) continue
+    if (description.length < 3) continue
 
     transactions.push({
-      date: parseDateStr(dateStr, stmtYear),
+      date: parseDateStr(dateStr, stmtYear, stmtMonth),
       description,
       amount,
       type: isCredit ? 'income' : 'expense',
     })
   }
 
-  // If regex didn't catch enough, try a simpler fallback pattern
+  // Fallback: try full-text regex if line-based parsing found nothing
+  // (handles case where pdfjs still outputs continuous text for some PDFs)
   if (transactions.length === 0) {
-    const simplePattern = /(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+([\w\s\-\.]+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})(CR)?/gi
-    while ((match = simplePattern.exec(text)) !== null) {
+    const txPattern = /(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\/\d{2}\s|\s+TOTAL|\s+SUB\s*TOTAL|\s+YOUR|\s+JUMLAH|\s*$)/gi
+    let match
+    while ((match = txPattern.exec(text)) !== null) {
       const dateStr = match[1]
       let description = match[2].trim()
       const amount = parseFloat(match[3].replace(/,/g, ''))
@@ -305,7 +367,7 @@ function parseMaybank(text: string, bank: string): ParsedStatement {
       if (description.length < 3) continue
 
       transactions.push({
-        date: parseDateStr(dateStr, stmtYear),
+        date: parseDateStr(dateStr, stmtYear, stmtMonth),
         description,
         amount,
         type: isCredit ? 'income' : 'expense',
@@ -352,58 +414,63 @@ function parseDDMMMBank(text: string, bank: string): ParsedStatement {
   const balMatch = text.match(/(?:Current\s*Balance|Total\s*Balance\s*Due|Baki\s*Perlu|Outstanding\s*Balance|Jumlah\s*Terkini)\s*(?:\(RM\))?\s*[:\s]*(\d{1,3}(?:,\d{3})*\.\d{2})/i)
   if (balMatch) totalAmount = parseFloat(balMatch[1].replace(/,/g, ''))
 
-  // Statement year
+  // Statement year and month
   let stmtYear = new Date().getFullYear()
+  let stmtMonth: number | undefined
   if (statementDate) {
-    const y = parseInt(statementDate.split('-')[0])
+    const parts = statementDate.split('-')
+    const y = parseInt(parts[0])
     if (y > 2000) stmtYear = y
+    stmtMonth = parseInt(parts[1])
   }
 
   const transactions: ParsedTransaction[] = []
+  const lines = text.split('\n')
 
-  // Pattern 1: DD MMM  DD MMM  DESCRIPTION  AMOUNT [CR] (Hong Leong, RHB)
-  const pattern1 = /(\d{2}\s+[A-Z]{3})\s+\d{2}\s+[A-Z]{3}\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\s+[A-Z]{3}\s|\s+(?:SUB|TOTAL|CLOSING|PREVIOUS|OPENING|MINIMUM|Hong\s*Leong|RHB|Page|$))/gi
+  // Line-based parsing (with coordinate-sorted text, each transaction is a line)
+  for (const line of lines) {
+    // Pattern 1: DD MMM  DD MMM  DESCRIPTION  AMOUNT [CR] (Hong Leong, RHB)
+    let m = line.match(/^(\d{2}\s+[A-Z]{3})\s+\d{2}\s+[A-Z]{3}\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?\s*$/)
+    // Pattern 2: DD MMM  DESCRIPTION  AMOUNT [CR] (UOB - single date)
+    if (!m) m = line.match(/^(\d{2}\s+[A-Z]{3})\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?\s*$/)
+    if (!m) continue
 
-  let m
-  while ((m = pattern1.exec(text)) !== null) {
     const dateStr = m[1]
     let description = m[2].trim()
     const amount = parseFloat(m[3].replace(/,/g, ''))
     const isCredit = !!m[4]
 
     if (amount <= 0) continue
-    // Skip header/info lines
-    if (/INTEREST\s*(IS|RATE)|PREVIOUS\s*BAL|OPENING\s*BAL|FLEXI\s*PAYMENT.*:0\/|FPP\s*XFER|HLB-FLEXI/i.test(description)) continue
+    if (/INTEREST\s*(IS|RATE)|PREVIOUS\s*BAL|OPENING\s*BAL|CREDIT\s*LIMIT|CREDIT\s*SHIELD|FLEXI\s*PAYMENT.*:0\/|FPP\s*XFER|HLB-FLEXI/i.test(description)) continue
 
-    // Clean description
     description = description.replace(/\s{2,}/g, ' ').replace(/MYS?\s*$/i, '').replace(/MY\s*$/i, '').trim()
+    if (description.length < 3) continue
 
     transactions.push({
-      date: parseDateStr(dateStr, stmtYear),
+      date: parseDateStr(dateStr, stmtYear, stmtMonth),
       description,
       amount,
       type: isCredit ? 'income' : 'expense',
     })
   }
 
-  // Pattern 2: DD MMM  DESCRIPTION  AMOUNT [CR] (UOB - single date)
+  // Fallback: full-text regex if line-based found nothing
   if (transactions.length === 0) {
-    const pattern2 = /(\d{2}\s+[A-Z]{3})\s+(.*?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\s+[A-Z]{3}\s|\s+SUB-TOTAL|\s+MINIMUM|\s+PREVIOUS|\s+Page|\s*$)/gi
-
-    while ((m = pattern2.exec(text)) !== null) {
-      const dateStr = m[1]
-      let description = m[2].trim()
-      const amount = parseFloat(m[3].replace(/,/g, ''))
-      const isCredit = !!m[4]
+    const pattern = /(\d{2}\s+[A-Z]{3})\s+(?:\d{2}\s+[A-Z]{3}\s+)?(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s*(CR)?(?=\s+\d{2}\s+[A-Z]{3}\s|\s+(?:SUB|TOTAL|CLOSING|PREVIOUS|OPENING|MINIMUM|Page)\b|\s*$)/gi
+    let fm
+    while ((fm = pattern.exec(text)) !== null) {
+      const dateStr = fm[1]
+      let description = fm[2].trim()
+      const amount = parseFloat(fm[3].replace(/,/g, ''))
+      const isCredit = !!fm[4]
 
       if (amount <= 0) continue
-      if (/PREVIOUS\s*BAL|CREDIT\s*LIMIT|CREDIT\s*SHIELD/i.test(description)) continue
-
+      if (/INTEREST\s*(IS|RATE)|PREVIOUS\s*BAL|OPENING\s*BAL|CREDIT\s*LIMIT|CREDIT\s*SHIELD/i.test(description)) continue
       description = description.replace(/\s{2,}/g, ' ').replace(/MYS?\s*$/i, '').replace(/MY\s*$/i, '').trim()
       if (description.length < 3) continue
 
       transactions.push({
-        date: parseDateStr(dateStr, stmtYear),
+        date: parseDateStr(dateStr, stmtYear, stmtMonth),
         description,
         amount,
         type: isCredit ? 'income' : 'expense',
