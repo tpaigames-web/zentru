@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const [recurringList, setRecurringList] = useState<RecurringTransaction[]>([])
   useEffect(() => { repos.recurring.getActive().then(setRecurringList) }, [repos])
 
-  const [guideDismissed, setGuideDismissed] = useState(() => localStorage.getItem('zentru-guide-dismissed') === '1')
+  const [guideDismissed, setGuideDismissed] = useState(false)
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const { start, end } = getMonthRange()
@@ -78,12 +78,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Getting Started Guide */}
-      {!guideDismissed && (cards.length === 0 || transactions.length === 0) && (
+      {!guideDismissed && cards.length === 0 && transactions.length === 0 && (
         <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold">{t('guide.welcome')}</h3>
             <button
-              onClick={() => { localStorage.setItem('zentru-guide-dismissed', '1'); setGuideDismissed(true) }}
+              onClick={() => setGuideDismissed(true)}
               className="rounded-full p-1 text-muted-foreground hover:bg-accent"
             >
               <X className="h-3.5 w-3.5" />
