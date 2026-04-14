@@ -31,7 +31,17 @@
     "recurringExpenses": "定期支出",
     "taxRelief": "税务减免助手",
     "streakDays": "连续记账天数",
-    "detectedRecurring": "检测到的定期交易"
+    "detectedRecurring": "检测到的定期交易",
+    "addFirst": "添加第一笔交易"
+  },
+  "guide": {
+    "welcome": "欢迎使用 Zentru！",
+    "step1": "添加你的第一张信用卡",
+    "step2": "记录第一笔支出",
+    "step3": "查看分析报表",
+    "addCard": "添加卡片",
+    "importPdf": "导入账单",
+    "dismiss": "知道了"
   },
   "cards": {
     "title": "信用卡管理",

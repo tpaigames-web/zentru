@@ -31,7 +31,17 @@
     "recurringExpenses": "Recurring Expenses",
     "taxRelief": "Tax Relief Helper",
     "streakDays": "day streak",
-    "detectedRecurring": "Detected Recurring Transactions"
+    "detectedRecurring": "Detected Recurring Transactions",
+    "addFirst": "Add your first transaction"
+  },
+  "guide": {
+    "welcome": "Welcome to Zentru!",
+    "step1": "Add your first credit card",
+    "step2": "Log your first expense",
+    "step3": "Check your analytics",
+    "addCard": "Add Card",
+    "importPdf": "Import PDF",
+    "dismiss": "Got it"
   },
   "cards": {
     "title": "Credit Cards",

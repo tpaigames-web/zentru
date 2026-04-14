@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Plus, CreditCard, Smartphone } from 'lucide-react'
+import { Plus, CreditCard, Smartphone, CheckCircle2, Circle, FileText, X } from 'lucide-react'
 import { formatAmount } from '@/lib/currency'
 import { formatDate, getMonthRange, getDaysUntilDue } from '@/lib/date'
 import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -29,6 +29,8 @@ export default function DashboardPage() {
 
   const [recurringList, setRecurringList] = useState<RecurringTransaction[]>([])
   useEffect(() => { repos.recurring.getActive().then(setRecurringList) }, [repos])
+
+  const [guideDismissed, setGuideDismissed] = useState(() => localStorage.getItem('zentru-guide-dismissed') === '1')
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const { start, end } = getMonthRange()
@@ -74,6 +76,65 @@ export default function DashboardPage() {
           {t('dashboard.quickAdd')}
         </button>
       </div>
+
+      {/* Getting Started Guide */}
+      {!guideDismissed && (cards.length === 0 || transactions.length === 0) && (
+        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold">{t('guide.welcome')}</h3>
+            <button
+              onClick={() => { localStorage.setItem('zentru-guide-dismissed', '1'); setGuideDismissed(true) }}
+              className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="space-y-2.5 mb-4">
+            {[
+              { done: cards.length > 0, key: 'guide.step1' },
+              { done: transactions.length > 0, key: 'guide.step2' },
+              { done: transactions.length >= 3, key: 'guide.step3' },
+            ].map(({ done, key }) => (
+              <div key={key} className="flex items-center gap-2.5">
+                {done
+                  ? <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-success" />
+                  : <Circle className="h-4.5 w-4.5 shrink-0 text-muted-foreground/40" />
+                }
+                <span className={cn('text-xs', done ? 'text-muted-foreground line-through' : 'font-medium')}>{t(key)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {cards.length === 0 && (
+              <button
+                onClick={() => navigate('/cards')}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                {t('guide.addCard')}
+              </button>
+            )}
+            {cards.length === 0 && (
+              <button
+                onClick={() => navigate('/import')}
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-accent"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {t('guide.importPdf')}
+              </button>
+            )}
+            {cards.length > 0 && transactions.length === 0 && (
+              <button
+                onClick={() => navigate('/transactions/new')}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t('guide.step2')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Credit Cards — horizontal scroll like Finory */}
       <div>
@@ -279,7 +340,16 @@ export default function DashboardPage() {
           )}
         </div>
         {recentTx.length === 0 ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">{t('dashboard.noTransactions')}</div>
+          <div className="py-6 flex flex-col items-center gap-2">
+            <p className="text-xs text-muted-foreground">{t('dashboard.noTransactions')}</p>
+            <button
+              onClick={() => navigate('/transactions/new')}
+              className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+            >
+              <Plus className="h-3 w-3" />
+              {t('dashboard.addFirst')}
+            </button>
+          </div>
         ) : (
           <div className="divide-y">
             {recentTx.map((tx) => {
