@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Camera, Upload, X, Loader2, CheckCircle2, Receipt } from 'lucide-react'
-import { captureReceiptImage, scanReceiptImage, scanReceiptFromFile, type ScannedReceiptData } from '@/services/receiptScanner'
+import { Camera, Upload, X, Loader2, CheckCircle2, Receipt, FileText } from 'lucide-react'
+import { captureReceiptImage, scanReceiptImage, scanReceiptFromFile, scanReceiptFromPdf, type ScannedReceiptData } from '@/services/receiptScanner'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { formatAmount } from '@/lib/currency'
 
@@ -20,6 +20,7 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
   const [editMerchant, setEditMerchant] = useState('')
   const [editDate, setEditDate] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const handleCapture = async (source: 'camera' | 'gallery') => {
     setIsScanning(true)
@@ -59,6 +60,23 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
     setIsScanning(false)
   }
 
+  const handlePdfInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsScanning(true)
+    setError('')
+    try {
+      const data = await scanReceiptFromPdf(file)
+      setResult(data)
+      setEditAmount(data.totalAmount?.toFixed(2) || '')
+      setEditMerchant(data.merchant || '')
+      setEditDate(data.date || new Date().toISOString().split('T')[0])
+    } catch {
+      setError(t('receipt.scanFailed'))
+    }
+    setIsScanning(false)
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 md:items-center" onClick={onClose}>
       <div
@@ -76,26 +94,37 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t('receipt.instruction')}</p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleCapture('camera')}
                 disabled={isScanning}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 hover:border-primary/50 hover:bg-accent/30 transition-colors disabled:opacity-50"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 hover:border-primary/50 hover:bg-accent/30 transition-colors disabled:opacity-50"
               >
-                <Camera className="h-8 w-8 text-primary" />
-                <span className="text-sm font-medium">{t('receipt.camera')}</span>
+                <Camera className="h-7 w-7 text-primary" />
+                <span className="text-xs font-medium">{t('receipt.camera')}</span>
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isScanning}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 hover:border-primary/50 hover:bg-accent/30 transition-colors disabled:opacity-50"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 hover:border-primary/50 hover:bg-accent/30 transition-colors disabled:opacity-50"
               >
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <span className="text-sm font-medium">{t('receipt.gallery')}</span>
+                <Upload className="h-7 w-7 text-muted-foreground" />
+                <span className="text-xs font-medium">{t('receipt.gallery')}</span>
+              </button>
+              <button
+                onClick={() => pdfInputRef.current?.click()}
+                disabled={isScanning}
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 hover:border-primary/50 hover:bg-accent/30 transition-colors disabled:opacity-50"
+              >
+                <FileText className="h-7 w-7 text-destructive/70" />
+                <span className="text-xs font-medium">PDF</span>
               </button>
             </div>
 
+            <p className="text-[10px] text-muted-foreground text-center">{t('receipt.pdfHint')}</p>
+
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileInput} />
+            <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfInput} />
 
             {isScanning && (
               <div className="flex items-center justify-center gap-2 py-4">
@@ -163,6 +192,31 @@ export function ReceiptScan({ onResult, onClose }: ReceiptScanProps) {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* E-invoice info (read-only) */}
+              {(result.invoiceNo || result.taxAmount) && (
+                <div className="space-y-1.5 border-t pt-2">
+                  <span className="text-[10px] text-muted-foreground font-medium">e-Invoice</span>
+                  {result.invoiceNo && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Invoice No</span>
+                      <span className="font-mono">{result.invoiceNo}</span>
+                    </div>
+                  )}
+                  {result.tin && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">TIN</span>
+                      <span className="font-mono">{result.tin}</span>
+                    </div>
+                  )}
+                  {result.taxAmount && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">SST/Tax</span>
+                      <span className="font-medium">{formatAmount(result.taxAmount, currency)}</span>
+                    </div>
+                  )}
                 </div>
               )}
 

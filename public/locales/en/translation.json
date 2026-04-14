@@ -249,6 +249,7 @@
   },
   "receipt": {
     "title": "Scan Receipt",
+    "pdfHint": "Supports PDF receipts & Malaysia e-Invoice",
     "scanReceipt": "Scan",
     "instruction": "Take a photo of your receipt to auto-detect amount, merchant and date",
     "camera": "Camera",

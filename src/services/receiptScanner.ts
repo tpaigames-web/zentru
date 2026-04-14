@@ -1,5 +1,6 @@
 import { createWorker } from 'tesseract.js'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { extractPdfText } from './pdfParser'
 
 export interface ScannedReceiptData {
   totalAmount?: number
@@ -7,6 +8,10 @@ export interface ScannedReceiptData {
   date?: string
   items?: { name: string; amount: number }[]
   rawText: string
+  /** E-invoice fields */
+  invoiceNo?: string
+  tin?: string
+  taxAmount?: number
 }
 
 /**
@@ -44,6 +49,59 @@ export async function scanReceiptFromFile(file: File): Promise<ScannedReceiptDat
   const { data } = await worker.recognize(file)
   await worker.terminate()
   return parseReceiptText(data.text)
+}
+
+/**
+ * Scan receipt/e-invoice from PDF file.
+ * Uses pdfjs coordinate-based text extraction, then parses with e-invoice awareness.
+ */
+export async function scanReceiptFromPdf(file: File): Promise<ScannedReceiptData> {
+  const text = await extractPdfText(file)
+  return parseReceiptPdfText(text)
+}
+
+/**
+ * Parse PDF receipt/e-invoice text.
+ * Handles Malaysia e-Invoice (e-Invois) format with TIN, MSIC, SST, etc.
+ */
+function parseReceiptPdfText(rawText: string): ScannedReceiptData {
+  const result = parseReceiptText(rawText)
+
+  // E-Invoice specific fields — extract invoice number for notes
+  const invoiceMatch = rawText.match(/(?:Invoice\s*(?:No|Number|#)|No\.\s*Invois|e-Invoice\s*No)\s*[:\s]*([A-Z0-9\-\/]+)/i)
+  if (invoiceMatch) {
+    result.invoiceNo = invoiceMatch[1].trim()
+  }
+
+  // TIN (Tax Identification Number) — Malaysia e-invoice requirement
+  const tinMatch = rawText.match(/(?:TIN|Tax\s*ID|No\.\s*Pengenalan\s*Cukai)\s*[:\s]*([A-Z0-9\-]+)/i)
+  if (tinMatch) {
+    result.tin = tinMatch[1].trim()
+  }
+
+  // SST amount
+  const sstMatch = rawText.match(/(?:SST|Sales\s*&?\s*Service\s*Tax|Cukai\s*Perkhidmatan)\s*[:\s]*(?:RM|MYR)?\s*(\d{1,3}(?:,\d{3})*\.\d{2})/i)
+  if (sstMatch) {
+    result.taxAmount = parseFloat(sstMatch[1].replace(/,/g, ''))
+  }
+
+  // GST / Tax amount (fallback)
+  if (!result.taxAmount) {
+    const taxMatch = rawText.match(/(?:GST|TAX|CUKAI)\s*(?:AMOUNT)?\s*[:\s]*(?:RM|MYR)?\s*(\d{1,3}(?:,\d{3})*\.\d{2})/i)
+    if (taxMatch) {
+      result.taxAmount = parseFloat(taxMatch[1].replace(/,/g, ''))
+    }
+  }
+
+  // Seller/Merchant from e-invoice structured fields
+  if (!result.merchant) {
+    const sellerMatch = rawText.match(/(?:Seller|Supplier|Penjual|Company\s*Name|Nama\s*Syarikat)\s*[:\s]*(.+)/i)
+    if (sellerMatch) {
+      result.merchant = sellerMatch[1].trim().substring(0, 60)
+    }
+  }
+
+  return result
 }
 
 function parseReceiptText(rawText: string): ScannedReceiptData {

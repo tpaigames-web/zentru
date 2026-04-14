@@ -249,6 +249,7 @@
   },
   "receipt": {
     "title": "扫描收据",
+    "pdfHint": "支持 PDF 收据和马来西亚 e-Invoice 电子发票",
     "scanReceipt": "扫收据",
     "instruction": "拍摄收据，自动识别金额、商户和日期",
     "camera": "拍照",
