@@ -135,6 +135,8 @@
     "importData": "Import Data",
     "backup": "Backup",
     "restore": "Restore",
+    "dailyReminder": "Daily Reminder",
+    "dailyReminderDesc": "Set daily tracking reminder time",
     "appLock": "App Lock",
     "appLockDesc": "PIN code to protect your data",
     "about": "About"

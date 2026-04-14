@@ -135,6 +135,8 @@
     "importData": "导入数据",
     "backup": "备份数据",
     "restore": "恢复数据",
+    "dailyReminder": "每日记账提醒",
+    "dailyReminderDesc": "选择每天提醒时间",
     "appLock": "应用锁",
     "appLockDesc": "PIN 码保护你的财务数据",
     "about": "关于"

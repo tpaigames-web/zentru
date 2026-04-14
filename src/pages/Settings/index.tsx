@@ -139,6 +139,33 @@ export default function SettingsPage() {
 
         <div className="mx-4 border-t" />
 
+        {/* Daily Reminder Time */}
+        <div className="flex w-full items-center justify-between px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <Bell className="h-5 w-5 text-primary" />
+            <div>
+              <span className="text-sm font-medium">{t('settings.dailyReminder')}</span>
+              <p className="text-xs text-muted-foreground">{t('settings.dailyReminderDesc')}</p>
+            </div>
+          </div>
+          <select
+            value={useSettingsStore.getState().dailyReminderHour}
+            onChange={async (e) => {
+              const hour = parseInt(e.target.value)
+              useSettingsStore.getState().setDailyReminderHour(hour)
+              const { scheduleDailyReminder } = await import('@/services/notification')
+              scheduleDailyReminder(hour)
+            }}
+            className="rounded border bg-background px-2 py-1 text-xs"
+          >
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mx-4 border-t" />
+
         {/* App Lock */}
         {(() => {
           const { pinEnabled, setPin, removePin } = useAuthStore()

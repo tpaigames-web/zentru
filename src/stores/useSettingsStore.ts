@@ -8,10 +8,12 @@ interface SettingsState {
   language: string
   currency: string
   persistentNotification: boolean
+  dailyReminderHour: number  // 0-23, default 21 (9pm)
   setTheme: (theme: Theme) => void
   setLanguage: (lang: string) => void
   setCurrency: (currency: string) => void
   setPersistentNotification: (enabled: boolean) => void
+  setDailyReminderHour: (hour: number) => void
   getEffectiveTheme: () => 'light' | 'dark'
 }
 
@@ -22,6 +24,7 @@ export const useSettingsStore = create<SettingsState>()(
       language: 'zh',
       currency: 'MYR',
       persistentNotification: true,
+      dailyReminderHour: 21,
 
       setTheme: (theme) => {
         set({ theme })
@@ -38,6 +41,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       setPersistentNotification: (enabled) => {
         set({ persistentNotification: enabled })
+      },
+
+      setDailyReminderHour: (hour) => {
+        set({ dailyReminderHour: hour })
       },
 
       getEffectiveTheme: () => {

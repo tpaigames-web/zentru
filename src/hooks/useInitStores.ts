@@ -66,7 +66,7 @@ export function useInitStores() {
           await schedulePaymentReminders(cards)
 
           // 4. Schedule daily tracking reminder
-          await scheduleDailyReminder()
+          await scheduleDailyReminder(useSettingsStore.getState().dailyReminderHour)
 
           // 5. Show persistent quick-entry notification (if enabled)
           if (useSettingsStore.getState().persistentNotification) {

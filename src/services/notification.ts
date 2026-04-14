@@ -122,21 +122,38 @@ export async function schedulePaymentReminders(cards: CreditCard[]) {
     const threeDaysBefore = new Date(dueDate)
     threeDaysBefore.setDate(threeDaysBefore.getDate() - 3)
 
+    const minPayment = Math.max(50, card.currentBalance * 0.05)
+
+    // 1st reminder — 7 days before
+    const sevenDaysBefore = new Date(dueDate)
+    sevenDaysBefore.setDate(sevenDaysBefore.getDate() - 7)
+    if (sevenDaysBefore > new Date()) {
+      notifications.push({
+        id: notifId++,
+        title: `💳 ${card.name} Payment Reminder`,
+        body: `Total RM ${card.currentBalance.toFixed(2)} or min RM ${minPayment.toFixed(2)} is due on ${dueDate.toLocaleDateString()}. This is your 1st reminder.`,
+        schedule: { at: sevenDaysBefore },
+        channelId: 'payment-reminders',
+      })
+    }
+
+    // 2nd reminder — 3 days before
     if (threeDaysBefore > new Date()) {
       notifications.push({
         id: notifId++,
         title: `💳 ${card.name} Payment Due Soon`,
-        body: `Payment of RM ${card.currentBalance.toFixed(2)} due in 3 days`,
+        body: `Total RM ${card.currentBalance.toFixed(2)} or min RM ${minPayment.toFixed(2)} is due in 3 days. This is your 2nd reminder.`,
         schedule: { at: threeDaysBefore },
         channelId: 'payment-reminders',
       })
     }
 
+    // LAST reminder — due date
     if (dueDate > new Date()) {
       notifications.push({
         id: notifId++,
-        title: `⚠️ ${card.name} Payment Due Today`,
-        body: `Payment of RM ${card.currentBalance.toFixed(2)} is due today!`,
+        title: `⚠️ ${card.name} Payment Due Today!`,
+        body: `Total RM ${card.currentBalance.toFixed(2)} or min RM ${minPayment.toFixed(2)} is due TODAY for ${card.name} ${card.lastFourDigits || ''}. This is your LAST reminder.`,
         schedule: { at: dueDate },
         channelId: 'payment-reminders',
       })
@@ -149,18 +166,21 @@ export async function schedulePaymentReminders(cards: CreditCard[]) {
 }
 
 /**
- * Schedule daily expense tracking reminder at 9pm.
+ * Schedule daily expense tracking reminder at user-configured hour.
  */
-export async function scheduleDailyReminder() {
+export async function scheduleDailyReminder(hour = 21) {
   if (!Capacitor.isNativePlatform()) return
 
   const perm = await LocalNotifications.checkPermissions()
   if (perm.display !== 'granted') return
 
+  // Cancel existing daily reminder
+  await LocalNotifications.cancel({ notifications: [{ id: 9999 }] })
+
   const now = new Date()
-  const ninepm = new Date(now)
-  ninepm.setHours(21, 0, 0, 0)
-  if (ninepm <= now) ninepm.setDate(ninepm.getDate() + 1)
+  const reminderTime = new Date(now)
+  reminderTime.setHours(hour, 0, 0, 0)
+  if (reminderTime <= now) reminderTime.setDate(reminderTime.getDate() + 1)
 
   await LocalNotifications.schedule({
     notifications: [{
@@ -168,7 +188,7 @@ export async function scheduleDailyReminder() {
       title: '📝 Time to track expenses',
       body: "Don't forget to log today's spending!",
       schedule: {
-        at: ninepm,
+        at: reminderTime,
         repeats: true,
         every: 'day',
       },
