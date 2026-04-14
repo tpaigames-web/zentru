@@ -167,6 +167,21 @@ export function CardForm({ card, scannedData, onSubmit, onClose }: CardFormProps
                       onClick={() => {
                         setValue('name', prod.fullName)
                         setValue('color', prod.cardColor)
+                        // Auto-fill cashback rules from catalog
+                        if (prod.defaultRules) {
+                          const allCats = [...expenseCategories, ...useCategoryStore.getState().getIncomeCategories()]
+                          setCashbackRules(prod.defaultRules.map((r) => {
+                            let catId = r.categoryKey
+                            if (catId !== '*') {
+                              const match = allCats.find((c) => c.nameKey === catId)
+                              catId = match?.id || '*'
+                            }
+                            return { categoryId: catId, rate: r.rate, monthlyCap: r.monthlyCap }
+                          }))
+                        }
+                        if (prod.defaultTotalCap) {
+                          setValue('totalMonthlyCashbackCap', prod.defaultTotalCap)
+                        }
                       }}
                       className={cn(
                         'flex shrink-0 flex-col items-start rounded-lg border p-2 text-left transition-all w-36',
