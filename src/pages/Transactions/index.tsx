@@ -11,6 +11,8 @@ import { formatAmount } from '@/lib/currency'
 import { formatDate } from '@/lib/date'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EditTransaction } from './EditTransaction'
+import type { Transaction } from '@/models/transaction'
 
 export default function TransactionsPage() {
   const { t, i18n } = useTranslation()
@@ -25,6 +27,7 @@ export default function TransactionsPage() {
   const [filterCategoryId] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
 
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
@@ -145,7 +148,7 @@ export default function TransactionsPage() {
                   const account = tx.accountId ? accountMap.get(tx.accountId) : null
                   const paymentName = card?.name || account?.name
                   return (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setEditingTx(tx)}>
                       {cat && (
                         <div
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -194,6 +197,13 @@ export default function TransactionsPage() {
           message={t('transactions.confirmDelete')}
           onConfirm={() => { deleteTransaction(showConfirmDelete); setShowConfirmDelete(null) }}
           onCancel={() => setShowConfirmDelete(null)}
+        />
+      )}
+
+      {editingTx && (
+        <EditTransaction
+          transaction={editingTx}
+          onClose={() => setEditingTx(null)}
         />
       )}
     </div>

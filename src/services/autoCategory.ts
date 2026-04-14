@@ -7,22 +7,23 @@ import type { Category } from '@/models/category'
  */
 const CATEGORY_RULES: { pattern: RegExp; nameKey: string }[] = [
   // Food & Dining
-  { pattern: /\b(restaurant|cafe|coffee|starbucks|mcdonald|kfc|pizza|sushi|nasi|mee|roti|mamak|kopitiam|food|bakery|bread|dim sum|steamboat|bbq|grill|burger|subway|domino|nando|secret recipe|old town|papparich|pelita|ali maju|mydin.*food)\b/i, nameKey: 'category.food' },
+  { pattern: /\b(restaurant|cafe|coffee|starbucks|mcdonald|kfc|pizza|sushi|nasi|mee|roti|mamak|kopitiam|food|bakery|bread|dim sum|steamboat|bbq|grill|burger|subway|domino|nando|secret recipe|old town|papparich|pelita|ali maju|mydin.*food|hotpot|hot\s*pot|mookata|nippon\s*sushi|hai\s*ke|yeeka|jm\s*coffee|7.eleven|7-eleven|99\s*speed\s*mart|speedmart|family\s*mart)\b/i, nameKey: 'category.food' },
 
   // Transport
-  { pattern: /\b(grab(?:pay)?|uber|taxi|mrt|lrt|ktm|rapidkl|bus|parking|toll|plus\s*highway|smart\s*tag|touch.*go.*topup|petrol|shell|petronas|caltex|bp\s|fuel|gas\s*station)\b/i, nameKey: 'category.transport' },
+  { pattern: /\b(grab(?:pay)?|uber|taxi|mrt|lrt|ktm|rapidkl|bus|parking|toll|plus\s*highway|smart\s*tag|touch.*go.*topup|petrol|shell|petronas|petron|caltex|bp\s|fuel|gas\s*station|redbus|puspakom)\b/i, nameKey: 'category.transport' },
 
   // Shopping
-  { pattern: /\b(shopee|lazada|amazon|aeon|tesco|lotus|giant|mydin|mr\.?diy|daiso|ikea|uniqlo|h&m|zara|cotton on|padini|watson|guardian|sephora|zalora)\b/i, nameKey: 'category.shopping' },
+  { pattern: /\b(shopee|lazada|amazon|aeon|tesco|lotus|giant|mydin|mr\.?diy|daiso|ikea|uniqlo|h&m|zara|cotton on|padini|watson|guardian|sephora|zalora|legoland)\b/i, nameKey: 'category.shopping' },
 
   // Entertainment
   { pattern: /\b(netflix|spotify|youtube|disney|hbo|cinema|gsc|tgv|mbo|karaoke|game|steam|playstation|xbox|nintendo|concert|ticket)\b/i, nameKey: 'category.entertainment' },
+  { pattern: /youtube\s*premium|google.*youtube/i, nameKey: 'category.entertainment' },
 
   // Housing
   { pattern: /\b(rent|rental|condo|apartment|mortgage|property|real estate|maintenance fee|sinking fund)\b/i, nameKey: 'category.housing' },
 
   // Utilities
-  { pattern: /\b(tnb|tenaga|water|air|indah water|telco|digi|maxis|celcom|unifi|tm|astro|internet|broadband|electric|gas.*bill)\b/i, nameKey: 'category.utilities' },
+  { pattern: /\b(tnb|tenaga|water|air|indah water|telco|digi|maxis|celcom|unifi|tm|astro|internet|broadband|electric|gas.*bill|myeg|payex|lonpac|takaful|msig|credit\s*shield|sykt\s*takaful|excess\s*limit)\b/i, nameKey: 'category.utilities' },
 
   // Medical
   { pattern: /\b(clinic|hospital|pharmacy|doctor|dental|dentist|medical|health|guardian.*pharma|watson.*pharma|prescription|medicine)\b/i, nameKey: 'category.medical' },
@@ -56,7 +57,7 @@ const CATEGORY_RULES: { pattern: RegExp; nameKey: string }[] = [
   { pattern: /\b(bonus|incentive|commission)\b/i, nameKey: 'category.bonus' },
   { pattern: /\b(dividend|interest|investment|return|capital gain|unit trust|asnb|epf|kwsp)\b/i, nameKey: 'category.investment_income' },
   { pattern: /\b(freelance|gig|part.time|side.*income)\b/i, nameKey: 'category.freelance' },
-  { pattern: /\b(refund|rebate|cashback.*received|reimbursement)\b/i, nameKey: 'category.refund' },
+  { pattern: /\b(refund|rebate|cashback.*received|reimbursement|cash\s*rebate|payment.*thank|payment\s*rec)/i, nameKey: 'category.refund' },
 ]
 
 /**
