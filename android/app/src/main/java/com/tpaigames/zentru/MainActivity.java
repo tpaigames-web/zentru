@@ -1,4 +1,4 @@
-package com.credittrack.app;
+package com.tpaigames.zentru;
 
 import com.getcapacitor.BridgeActivity;
 

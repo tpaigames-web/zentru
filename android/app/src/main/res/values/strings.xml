@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CreditTrack</string>
-    <string name="title_activity_main">CreditTrack</string>
-    <string name="package_name">com.credittrack.app</string>
-    <string name="custom_url_scheme">com.credittrack.app</string>
+    <string name="app_name">Zentru</string>
+    <string name="title_activity_main">Zentru</string>
+    <string name="package_name">com.tpaigames.zentru</string>
+    <string name="custom_url_scheme">com.tpaigames.zentru</string>
 </resources>

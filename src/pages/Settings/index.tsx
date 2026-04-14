@@ -36,12 +36,12 @@ export default function SettingsPage() {
 
   const handleExportCSV = () => {
     const csv = exportTransactionsCSV(transactions)
-    downloadFile(csv, `credittrack-transactions-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv')
+    downloadFile(csv, `zentru-transactions-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv')
   }
 
   const handleBackup = async () => {
     const data = await exportFullBackup()
-    downloadFile(JSON.stringify(data, null, 2), `credittrack-backup-${new Date().toISOString().split('T')[0]}.json`)
+    downloadFile(JSON.stringify(data, null, 2), `zentru-backup-${new Date().toISOString().split('T')[0]}.json`)
   }
 
   const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
