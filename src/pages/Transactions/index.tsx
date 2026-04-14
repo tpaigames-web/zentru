@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Receipt, Trash2, Search } from 'lucide-react'
+import { Plus, Receipt, Trash2, Search, CheckSquare, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
@@ -17,7 +17,7 @@ import type { Transaction } from '@/models/transaction'
 export default function TransactionsPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { transactions, deleteTransaction } = useTransactionStore()
+  const { transactions, deleteTransaction, updateTransaction } = useTransactionStore()
   const { categories } = useCategoryStore()
   const { cards } = useCardStore()
   const { accounts } = useAccountStore()
@@ -28,6 +28,9 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showBulkCategoryPicker, setShowBulkCategoryPicker] = useState(false)
 
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
@@ -60,7 +63,7 @@ export default function TransactionsPage() {
       }
       return true
     })
-  }, [transactions, filterType, filterCardId, filterCategoryId])
+  }, [transactions, filterType, filterCardId, filterCategoryId, searchQuery, categoryMap])
 
   // Group transactions by date
   const grouped = useMemo(() => {
@@ -77,13 +80,24 @@ export default function TransactionsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">{t('transactions.title')}</h2>
-        <button
-          onClick={() => navigate('/transactions/new')}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          {t('transactions.addTransaction')}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()) }}
+            className={cn('flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', bulkMode ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+            Bulk Edit
+          </button>
+          {!bulkMode && (
+            <button
+              onClick={() => navigate('/transactions/new')}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t('transactions.addTransaction')}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -148,7 +162,26 @@ export default function TransactionsPage() {
                   const account = tx.accountId ? accountMap.get(tx.accountId) : null
                   const paymentName = card?.name || account?.name
                   return (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setEditingTx(tx)}>
+                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => {
+                      if (bulkMode) {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(tx.id)) next.delete(tx.id)
+                          else next.add(tx.id)
+                          return next
+                        })
+                      } else {
+                        setEditingTx(tx)
+                      }
+                    }}>
+                      {bulkMode && (
+                        <div className={cn(
+                          'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
+                          selectedIds.has(tx.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'
+                        )}>
+                          {selectedIds.has(tx.id) && <CheckSquare className="h-3.5 w-3.5" />}
+                        </div>
+                      )}
                       {cat && (
                         <div
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -176,12 +209,14 @@ export default function TransactionsPage() {
                         <p className="text-xs text-success">+{formatAmount(tx.cashbackAmount, tx.currency)} cb</p>
                       ) : null}
                       </div>
-                      <button
-                        onClick={() => setShowConfirmDelete(tx.id)}
-                        className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {!bulkMode && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowConfirmDelete(tx.id) }}
+                          className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -205,6 +240,73 @@ export default function TransactionsPage() {
           transaction={editingTx}
           onClose={() => setEditingTx(null)}
         />
+      )}
+
+      {/* Bulk Edit Bottom Toolbar */}
+      {bulkMode && (
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-[60] border-t bg-card px-4 py-3 shadow-lg">
+          <div className="mx-auto flex max-w-lg items-center justify-between">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setBulkMode(false); setSelectedIds(new Set()) }}
+                className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedIds.size === 0) return
+                  setShowBulkCategoryPicker(true)
+                }}
+                disabled={selectedIds.size === 0}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {t('transactions.category')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Category Picker */}
+      {showBulkCategoryPicker && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50" onClick={() => setShowBulkCategoryPicker(false)}>
+          <div className="w-full max-w-lg rounded-t-2xl bg-card p-4 pb-8 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">{t('transactions.category')}</h3>
+              <button onClick={() => setShowBulkCategoryPicker(false)} className="rounded-full p-1 hover:bg-accent">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={async () => {
+                    for (const id of selectedIds) {
+                      await updateTransaction(id, { categoryId: cat.id })
+                    }
+                    setShowBulkCategoryPicker(false)
+                    setBulkMode(false)
+                    setSelectedIds(new Set())
+                  }}
+                  className="flex flex-col items-center gap-1 rounded-xl p-2 hover:bg-accent transition-colors"
+                >
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-full"
+                    style={{ backgroundColor: cat.color + '20' }}
+                  >
+                    <CategoryIcon name={cat.icon} className="h-5 w-5" style={{ color: cat.color }} />
+                  </div>
+                  <span className="text-[10px] text-center leading-tight line-clamp-2">
+                    {cat.nameKey ? t(cat.nameKey) : cat.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
