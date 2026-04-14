@@ -9,11 +9,13 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { getMonthRange } from '@/lib/date'
 import type { CreditCard as CreditCardType } from '@/models/card'
 import { CardForm } from './CardForm'
+import { cn } from '@/lib/utils'
 import { CardItem } from './CardItem'
 import { PaymentForm } from './PaymentForm'
 import { PaymentHistory } from './PaymentHistory'
 import { ScanCard } from './ScanCard'
 import type { ScannedCardData } from '@/services/cardScanner'
+import { CashbackView } from './CashbackView'
 
 export default function CardsPage() {
   const { t } = useTranslation()
@@ -44,6 +46,7 @@ export default function CardsPage() {
   const [historyCard, setHistoryCard] = useState<CreditCardType | undefined>()
   const [showScanner, setShowScanner] = useState(false)
   const [scannedData, setScannedData] = useState<ScannedCardData | undefined>()
+  const [viewMode, setViewMode] = useState<'cards' | 'cashback'>('cards')
 
   const handleAdd = () => {
     setEditingCard(undefined)
@@ -88,28 +91,44 @@ export default function CardsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">{t('cards.title')}</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowScanner(true)}
-            className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
-          >
-            <ScanLine className="h-4 w-4" />
-            {t('cards.scan.title')}
-          </button>
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            {t('cards.addCard')}
-          </button>
-        </div>
+        {viewMode === 'cards' && (
+          <div className="flex gap-2">
+            <button onClick={() => setShowScanner(true)} className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-accent">
+              <ScanLine className="h-3.5 w-3.5" />
+              {t('cards.scan.title')}
+            </button>
+            <button onClick={handleAdd} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
+              <Plus className="h-3.5 w-3.5" />
+              {t('cards.addCard')}
+            </button>
+          </div>
+        )}
       </div>
 
-      {cards.length === 0 ? (
+      {/* Cards / Cashback tab switcher */}
+      <div className="flex rounded-lg bg-muted p-1">
+        <button
+          onClick={() => setViewMode('cards')}
+          className={cn('flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors', viewMode === 'cards' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+        >
+          {t('nav.cards')}
+        </button>
+        <button
+          onClick={() => setViewMode('cashback')}
+          className={cn('flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors', viewMode === 'cashback' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+        >
+          Cashback
+        </button>
+      </div>
+
+      {/* Cashback mode */}
+      {viewMode === 'cashback' && <CashbackView />}
+
+      {/* Cards mode */}
+      {viewMode === 'cards' && (cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 shadow-sm">
           <CreditCard className="mb-4 h-12 w-12 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">{t('cards.noCards')}</p>
@@ -129,7 +148,7 @@ export default function CardsPage() {
             />
           ))}
         </div>
-      )}
+      ))}
 
       {showForm && (
         <CardForm

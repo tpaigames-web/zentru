@@ -42,6 +42,7 @@ export interface CreditCard {
   notes?: string
   cashbackRules?: CashbackRule[]
   totalMonthlyCashbackCap?: number
+  actualCashbackReceived?: number  // user manually entered actual cashback
   pointsConfig?: PointsConfig
   signUpBonus?: SignUpBonus
   createdAt: number
