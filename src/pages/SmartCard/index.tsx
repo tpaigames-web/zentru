@@ -208,6 +208,8 @@ export default function SmartCardPage() {
           </div>
         )}
       </div>
+
+      <p className="text-[10px] text-muted-foreground/60 text-center px-4">{t('transactions.cashbackDisclaimer')}</p>
     </div>
   )
 }

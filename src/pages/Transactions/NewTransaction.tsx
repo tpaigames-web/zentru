@@ -271,6 +271,7 @@ export default function NewTransactionPage() {
             </div>
             <span className="text-base font-bold text-success">+{formatAmount(cashbackPreview.amount, currency)}</span>
           </div>
+          <p className="text-[10px] text-muted-foreground/60 mt-1">{t('transactions.cashbackDisclaimer')}</p>
         )}
 
         {/* Date */}

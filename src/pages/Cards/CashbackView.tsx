@@ -147,6 +147,7 @@ function CashbackCard({ card, monthlyEarned, onUpdateActual }: CashbackCardProps
 }
 
 export function CashbackView() {
+  const { t } = useTranslation()
   const { cards, updateCard } = useCardStore()
   const { transactions } = useTransactionStore()
   const { start, end } = getMonthRange()
@@ -196,6 +197,8 @@ export function CashbackView() {
       >
         <Plus className="h-4 w-4" /> Add New Credit Card
       </button>
+
+      <p className="text-[10px] text-muted-foreground/60 text-center px-4">{t('transactions.cashbackDisclaimer')}</p>
     </div>
   )
 }

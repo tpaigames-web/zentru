@@ -102,6 +102,7 @@
     "noTransactions": "暂无交易记录",
     "recommendCard": "推荐使用这张卡",
     "cashbackEarned": "可获得 Cashback！",
+    "cashbackDisclaimer": "返现费率仅供参考，请以银行官网公布的最新费率和条款为准。",
     "confirmDelete": "确定要删除这笔交易吗？此操作无法撤销。"
   },
   "analytics": {
