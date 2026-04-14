@@ -46,7 +46,8 @@ export default function CardsPage() {
   const [historyCard, setHistoryCard] = useState<CreditCardType | undefined>()
   const [showScanner, setShowScanner] = useState(false)
   const [scannedData, setScannedData] = useState<ScannedCardData | undefined>()
-  const [viewMode, setViewMode] = useState<'cards' | 'cashback'>('cards')
+  const [viewMode, setViewModeState] = useState<'cards' | 'cashback'>(() => (localStorage.getItem('zentru-cards-view') as 'cards' | 'cashback') || 'cards')
+  const setViewMode = (v: 'cards' | 'cashback') => { localStorage.setItem('zentru-cards-view', v); setViewModeState(v) }
 
   const handleAdd = () => {
     setEditingCard(undefined)
