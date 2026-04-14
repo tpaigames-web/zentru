@@ -261,17 +261,19 @@ export default function NewTransactionPage() {
 
         {/* Cashback preview */}
         {cashbackPreview && (
-          <div className="flex items-center justify-between rounded-lg border border-success/30 bg-success/5 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🎉</span>
-              <div>
-                <p className="text-xs font-medium text-success">{t('transactions.cashbackEarned')}</p>
-                <p className="text-[11px] text-muted-foreground">{cashbackPreview.rate}% cashback</p>
+          <>
+            <div className="flex items-center justify-between rounded-lg border border-success/30 bg-success/5 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎉</span>
+                <div>
+                  <p className="text-xs font-medium text-success">{t('transactions.cashbackEarned')}</p>
+                  <p className="text-[11px] text-muted-foreground">{cashbackPreview.rate}% cashback</p>
+                </div>
               </div>
+              <span className="text-base font-bold text-success">+{formatAmount(cashbackPreview.amount, currency)}</span>
             </div>
-            <span className="text-base font-bold text-success">+{formatAmount(cashbackPreview.amount, currency)}</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground/60 mt-1">{t('transactions.cashbackDisclaimer')}</p>
+            <p className="text-[10px] text-muted-foreground/60 -mt-2">{t('transactions.cashbackDisclaimer')}</p>
+          </>
         )}
 
         {/* Date */}
