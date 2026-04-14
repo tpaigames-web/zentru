@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, RefreshCw, ArrowLeft } from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { useData } from '@/data/DataProvider'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useCardStore } from '@/stores/useCardStore'
@@ -19,17 +19,27 @@ export default function RecurringPage() {
   const { cards } = useCardStore()
   const currency = useSettingsStore((s) => s.currency)
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([])
-  const [showForm, setShowForm] = useState(false)
+
+  // Pre-fill from URL params (from Dashboard detected recurring)
+  const prefillMerchant = searchParams.get('merchant') || ''
+  const prefillAmount = searchParams.get('amount') || ''
+  const prefillCat = searchParams.get('cat') || ''
+  const prefillCard = searchParams.get('card') || ''
+  const hasPrefill = !!prefillMerchant
+
+  const [showForm, setShowForm] = useState(hasPrefill)
 
   // Form state
   const [type, setType] = useState<'expense' | 'income'>('expense')
-  const [amount, setAmount] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [cardId, setCardId] = useState('')
+  const [amount, setAmount] = useState(prefillAmount)
+  const [categoryId, setCategoryId] = useState(prefillCat)
+  const [cardId, setCardId] = useState(prefillCard)
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly')
   const [dayOfMonth, setDayOfMonth] = useState('1')
-  const [merchant, setMerchant] = useState('')
+  const [merchant, setMerchant] = useState(prefillMerchant)
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const expenseCategories = categories.filter((c) => c.group === 'expense' && c.isActive)
@@ -66,6 +76,8 @@ export default function RecurringPage() {
     setAmount('')
     setCategoryId('')
     setMerchant('')
+    setCardId('')
+    if (hasPrefill) setSearchParams({}, { replace: true })
   }
 
   const handleDelete = async (id: string) => {

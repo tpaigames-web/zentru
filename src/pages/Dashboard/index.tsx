@@ -319,7 +319,7 @@ export default function DashboardPage() {
                   </div>
                   <span className="text-xs font-bold">{formatAmount(item.avgAmount, currency)}</span>
                   <button
-                    onClick={() => navigate(`/recurring`)}
+                    onClick={() => navigate(`/recurring?merchant=${encodeURIComponent(item.merchant)}&amount=${item.avgAmount}&cat=${item.categoryId}&card=${item.cardId || ''}&acc=${item.accountId || ''}`)}
                     className="rounded bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary"
                   >
                     + Add
