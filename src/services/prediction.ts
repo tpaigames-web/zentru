@@ -214,3 +214,71 @@ export function getBudgetRecommendations(
 
   return recommendations.sort((a, b) => b.averageSpend - a.averageSpend)
 }
+
+// ---- Financial Health ----
+
+export type CashflowStrength = 'HEALTHY' | 'WARNING' | 'CRITICAL'
+
+export interface FinancialHealth {
+  affordability: number
+  sustainabilityMonths: number
+  cashflowStrength: CashflowStrength
+  incomeTotal: number
+  expenseTotal: number
+  savingsRate: number
+  monthlySavings: number
+  cashOnHand: number
+}
+
+export function getFinancialHealth(
+  transactions: Transaction[],
+  months = 3,
+  baseDate = new Date(),
+): FinancialHealth {
+  const history = getMonthlyTotals(transactions, months, baseDate)
+
+  const avgIncome = history.length > 0 ? history.reduce((s, h) => s + h.income, 0) / history.length : 0
+  const avgExpense = history.length > 0 ? history.reduce((s, h) => s + h.expense, 0) / history.length : 0
+
+  // Current month
+  const currentStart = startOfMonth(baseDate).getTime()
+  const currentEnd = endOfMonth(baseDate).getTime()
+  const currentTx = transactions.filter((tx) => tx.date >= currentStart && tx.date <= currentEnd)
+  const currentIncome = currentTx.filter((tx) => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+  const currentExpense = currentTx.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
+
+  const affordability = avgIncome - avgExpense
+  const monthlySavings = currentIncome - currentExpense
+  const savingsRate = avgIncome > 0 ? ((avgIncome - avgExpense) / avgIncome) * 100 : 0
+
+  // Sustainability: how many months can you sustain if income stops
+  const sustainabilityMonths = avgExpense > 0 && affordability > 0
+    ? Math.floor(affordability * months / avgExpense)
+    : 0
+
+  // Cash on hand: cumulative net from all time
+  const totalIncome = transactions.filter((tx) => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+  const totalExpense = transactions.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
+  const cashOnHand = totalIncome - totalExpense
+
+  // Strength
+  let cashflowStrength: CashflowStrength = 'HEALTHY'
+  if (avgIncome > 0) {
+    const ratio = avgExpense / avgIncome
+    if (ratio >= 0.9) cashflowStrength = 'CRITICAL'
+    else if (ratio >= 0.6) cashflowStrength = 'WARNING'
+  } else if (avgExpense > 0) {
+    cashflowStrength = 'CRITICAL'
+  }
+
+  return {
+    affordability: Math.round(affordability * 100) / 100,
+    sustainabilityMonths,
+    cashflowStrength,
+    incomeTotal: currentIncome,
+    expenseTotal: currentExpense,
+    savingsRate: Math.round(savingsRate * 10) / 10,
+    monthlySavings: Math.round(monthlySavings * 100) / 100,
+    cashOnHand: Math.round(cashOnHand * 100) / 100,
+  }
+}

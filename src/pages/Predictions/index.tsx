@@ -9,9 +9,10 @@ import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useBudgetStore } from '@/stores/useBudgetStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { getMonthlyForecast, getCashFlowForecast, getBudgetRecommendations } from '@/services/prediction'
+import { getMonthlyForecast, getCashFlowForecast, getBudgetRecommendations, getFinancialHealth } from '@/services/prediction'
 import { formatAmount } from '@/lib/currency'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
+import { cn } from '@/lib/utils'
 
 export default function PredictionsPage() {
   const { t } = useTranslation()
@@ -38,6 +39,11 @@ export default function PredictionsPage() {
   const recommendations = useMemo(
     () => getBudgetRecommendations(transactions, budgets),
     [transactions, budgets],
+  )
+
+  const health = useMemo(
+    () => getFinancialHealth(transactions),
+    [transactions],
   )
 
   const predictedMonths = forecast.filter((f) => !f.isActual)
@@ -130,6 +136,58 @@ export default function PredictionsPage() {
             </ResponsiveContainer>
           </div>
         )}
+      </div>
+
+      {/* Financial Health — Finory style */}
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold">Financial Health</h3>
+
+        {/* Affordability + Sustainability */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="rounded-lg bg-muted/30 p-3 text-center">
+            <p className="text-lg font-bold">{formatAmount(health.affordability, currency)}</p>
+            <p className="text-[10px] text-muted-foreground">Affordability</p>
+          </div>
+          <div className="rounded-lg bg-muted/30 p-3 text-center">
+            <p className="text-lg font-bold">{health.sustainabilityMonths}</p>
+            <p className="text-[10px] text-muted-foreground">Month(s) Sustainability</p>
+          </div>
+        </div>
+
+        {/* Income + Cash on Hand */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+            <div>
+              <p className="text-sm font-bold text-success">{formatAmount(health.incomeTotal, currency)}</p>
+              <p className="text-[10px] text-muted-foreground">Income</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+            <div>
+              <p className="text-sm font-bold">{formatAmount(health.cashOnHand, currency)}</p>
+              <p className="text-[10px] text-muted-foreground">Cash-on-Hand</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Cashflow Strength */}
+        <div className={cn(
+          'rounded-lg px-3 py-2.5 text-center text-xs font-medium',
+          health.cashflowStrength === 'HEALTHY' ? 'bg-success/10 text-success' :
+          health.cashflowStrength === 'WARNING' ? 'bg-warning/10 text-warning' :
+          'bg-destructive/10 text-destructive',
+        )}>
+          Your cashflow strength is <span className="font-bold">{health.cashflowStrength}</span>
+          {health.savingsRate > 0 && ` · Savings rate ${health.savingsRate}%`}
+        </div>
+
+        {/* Monthly Savings */}
+        <div className="mt-3 flex items-center justify-between border-t pt-3">
+          <span className="text-xs text-muted-foreground">Monthly Savings</span>
+          <span className={cn('text-sm font-bold', health.monthlySavings >= 0 ? 'text-success' : 'text-destructive')}>
+            {formatAmount(health.monthlySavings, currency)}
+          </span>
+        </div>
       </div>
 
       {/* Budget Recommendations */}
