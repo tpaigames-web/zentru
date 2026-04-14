@@ -1,8 +1,21 @@
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Mail, Shield, Heart } from 'lucide-react'
+import { ArrowLeft, Mail, Shield, Heart, ShieldCheck, Eye, HardDrive, Lock, Search, PiggyBank, TrendingDown } from 'lucide-react'
 
 const APP_VERSION = '1.0.0'
+
+const SECURITY_ITEMS = [
+  { icon: ShieldCheck, titleKey: 'about.security1', descKey: 'about.security1Desc', color: '#22c55e' },
+  { icon: Eye, titleKey: 'about.security2', descKey: 'about.security2Desc', color: '#3b82f6' },
+  { icon: HardDrive, titleKey: 'about.security3', descKey: 'about.security3Desc', color: '#f59e0b' },
+  { icon: Lock, titleKey: 'about.security4', descKey: 'about.security4Desc', color: '#8b5cf6' },
+]
+
+const BENEFIT_ITEMS = [
+  { icon: Search, titleKey: 'about.benefit1', descKey: 'about.benefit1Desc', color: '#3b82f6' },
+  { icon: PiggyBank, titleKey: 'about.benefit2', descKey: 'about.benefit2Desc', color: '#22c55e' },
+  { icon: TrendingDown, titleKey: 'about.benefit3', descKey: 'about.benefit3Desc', color: '#f59e0b' },
+]
 
 export default function AboutPage() {
   const { t } = useTranslation()
@@ -31,6 +44,48 @@ export default function AboutPage() {
         <h1 className="text-xl font-bold">Zentru</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('app.tagline')}</p>
         <p className="mt-2 text-xs text-muted-foreground">v{APP_VERSION}</p>
+      </div>
+
+      {/* Benefits */}
+      <div className="rounded-xl border bg-card shadow-sm p-4">
+        <h3 className="text-sm font-semibold mb-4">{t('about.benefits')}</h3>
+        <div className="space-y-4">
+          {BENEFIT_ITEMS.map(({ icon: Icon, titleKey, descKey, color }) => (
+            <div key={titleKey} className="flex gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ backgroundColor: color + '15' }}
+              >
+                <Icon className="h-5 w-5" style={{ color }} />
+              </div>
+              <div>
+                <p className="text-sm font-medium">{t(titleKey)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t(descKey)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Security */}
+      <div className="rounded-xl border bg-card shadow-sm p-4">
+        <h3 className="text-sm font-semibold mb-4">{t('about.security')}</h3>
+        <div className="space-y-4">
+          {SECURITY_ITEMS.map(({ icon: Icon, titleKey, descKey, color }) => (
+            <div key={titleKey} className="flex gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ backgroundColor: color + '15' }}
+              >
+                <Icon className="h-5 w-5" style={{ color }} />
+              </div>
+              <div>
+                <p className="text-sm font-medium">{t(titleKey)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t(descKey)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Developer info */}

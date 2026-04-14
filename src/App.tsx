@@ -23,6 +23,7 @@ import ImportPage from '@/pages/Import'
 import SettingsPage from '@/pages/Settings'
 import AboutPage from '@/pages/Settings/About'
 import PrivacyPolicyPage from '@/pages/Settings/PrivacyPolicy'
+import LandingPage from '@/pages/Landing'
 
 const ONBOARDING_KEY = 'zentru-onboarded'
 
@@ -57,6 +58,7 @@ export default function App() {
     <DataProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
+          <Route path="landing" element={<LandingPage />} />
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="cards" element={<CardsPage />} />

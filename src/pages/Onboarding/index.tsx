@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CreditCard, BarChart3, Sparkles, Bell, ChevronRight } from 'lucide-react'
+import { CreditCard, BarChart3, Sparkles, Bell, Shield, ChevronRight } from 'lucide-react'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +32,12 @@ const STEPS = [
     titleKey: 'onboarding.step4Title',
     descKey: 'onboarding.step4Desc',
     color: '#8b5cf6',
+  },
+  {
+    icon: Shield,
+    titleKey: 'onboarding.step5Title',
+    descKey: 'onboarding.step5Desc',
+    color: '#ef4444',
   },
 ]
 

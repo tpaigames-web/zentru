@@ -205,7 +205,23 @@
     "feature3": "Spending analytics (category/merchant/trends)",
     "feature4": "PDF statement import (Malaysian banks)",
     "feature5": "Receipt OCR auto-entry",
-    "feature6": "Tax deduction tracking & annual report"
+    "feature6": "Tax deduction tracking & annual report",
+    "security": "Data Security",
+    "security1": "We never sell your data",
+    "security1Desc": "Fully compliant with Malaysia's Personal Data Protection Act (PDPA). Your data will never be sold to any third party.",
+    "security2": "No personal identity stored",
+    "security2Desc": "We do not store or process personal identity information such as full names, addresses, or complete card numbers.",
+    "security3": "100% local processing",
+    "security3Desc": "All data is processed and stored entirely on your device. No servers, no cloud, no tracking.",
+    "security4": "Encryption ready",
+    "security4Desc": "End-to-end AES-256 encryption prepared for future cloud sync. Only you can decrypt your data.",
+    "benefits": "Why Zentru?",
+    "benefit1": "Financial Clarity",
+    "benefit1Desc": "All your credit cards and expenses in one place, clearly organized and easy to understand.",
+    "benefit2": "Save More Money",
+    "benefit2Desc": "Identify unnecessary spending, avoid late payments, and maximize your cashback rewards.",
+    "benefit3": "Prevent Overspending",
+    "benefit3Desc": "Understand your spending habits, track recurring expenses, and forecast your future cash flow."
   },
   "dateRange": {
     "thisWeek": "This Week",
@@ -245,6 +261,8 @@
     "step3Desc": "Set cashback rules per card, get smart recommendations on which card to use, alerts when caps are reached",
     "step4Title": "Payment Reminders",
     "step4Desc": "Get notified before due dates, forecast future spending, and plan budgets with AI-powered predictions",
+    "step5Title": "Your Data, Your Control",
+    "step5Desc": "100% local processing — no servers, no tracking, no data collection. Your financial data stays on your device, always.",
     "next": "Next",
     "skip": "Skip",
     "getStarted": "Get Started"
