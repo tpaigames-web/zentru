@@ -24,6 +24,7 @@ import SettingsPage from '@/pages/Settings'
 import AboutPage from '@/pages/Settings/About'
 import PrivacyPolicyPage from '@/pages/Settings/PrivacyPolicy'
 import LandingPage from '@/pages/Landing'
+import NotFoundPage from '@/pages/NotFound'
 
 const ONBOARDING_KEY = 'zentru-onboarded'
 
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="privacy" element={<PrivacyPolicyPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

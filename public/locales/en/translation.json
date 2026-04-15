@@ -14,7 +14,14 @@
     "cashback": "Cashback",
     "smartCard": "Smart Card",
     "recurring": "Recurring",
-    "predictions": "Forecast"
+    "predictions": "Forecast",
+    "more": "More",
+    "import": "Import"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "message": "The page you're looking for doesn't exist.",
+    "goHome": "Go Home"
   },
   "dashboard": {
     "title": "Overview",

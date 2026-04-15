@@ -14,7 +14,14 @@
     "cashback": "返现",
     "smartCard": "智能推荐",
     "recurring": "定期交易",
-    "predictions": "预测"
+    "predictions": "预测",
+    "more": "更多",
+    "import": "导入"
+  },
+  "notFound": {
+    "title": "页面不存在",
+    "message": "你访问的页面不存在。",
+    "goHome": "返回首页"
   },
   "dashboard": {
     "title": "总览",
