@@ -32,16 +32,21 @@ const ONBOARDING_KEY = 'zentru-onboarded'
 
 export default function App() {
   const [ready, setReady] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const { user, loading: authLoading, initialize } = useUserStore()
 
   useEffect(() => {
     Promise.all([
-      seedDefaultCategories(),
-      initialize(),
+      seedDefaultCategories().catch((e) => console.warn('Seed failed:', e)),
+      initialize().catch((e) => console.warn('Auth init failed:', e)),
     ]).then(() => {
       const onboarded = localStorage.getItem(ONBOARDING_KEY)
       if (!onboarded) setShowOnboarding(true)
+      setReady(true)
+    }).catch((e) => {
+      console.error('App init failed:', e)
+      setInitError(e?.message || 'Unknown error')
       setReady(true)
     })
   }, [])
@@ -51,12 +56,27 @@ export default function App() {
     setShowOnboarding(false)
   }
 
+  if (initError) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff', fontFamily: 'sans-serif' }}>
+        <div style={{ textAlign: 'center', padding: '2rem' }}>
+          <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>App initialization failed</p>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{initError}</p>
+          <button onClick={() => window.location.reload()} style={{ marginTop: '1.5rem', padding: '0.5rem 1.5rem', background: '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', cursor: 'pointer' }}>
+            Reload
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!ready || authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff', fontFamily: 'sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Loading...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       </div>
     )
