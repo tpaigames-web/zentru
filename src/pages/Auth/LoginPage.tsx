@@ -5,7 +5,7 @@ import { useUserStore } from '@/stores/useUserStore'
 
 export default function LoginPage() {
   const { t, i18n } = useTranslation()
-  const { signIn, signUp, signInWithGoogle } = useUserStore()
+  const { signIn, signUp } = useUserStore()
   const isZh = i18n.language.startsWith('zh')
 
   const [isRegister, setIsRegister] = useState(false)
@@ -44,16 +44,6 @@ export default function LoginPage() {
     }
 
     setLoading(false)
-  }
-
-  const handleGoogle = async () => {
-    setLoading(true)
-    setError('')
-    const result = await signInWithGoogle()
-    if (result.error) {
-      setError(result.error)
-      setLoading(false)
-    }
   }
 
   return (
