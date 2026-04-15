@@ -50,8 +50,28 @@ export const useUserStore = create<UserState>()((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) return { error: error.message }
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      // "Database error saving new user" means the trigger failed
+      // but the user might still have been created in auth.users
+      if (error.message.includes('Database error')) {
+        return { error: '数据库错误，请联系管理员或稍后再试 / Database error, please try again later' }
+      }
+      return { error: error.message }
+    }
+    // If signup succeeded but profile wasn't created by trigger, create it manually
+    if (data.user) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: data.user.id,
+          email: data.user.email,
+          display_name: data.user.email?.split('@')[0] || 'User',
+        }, { onConflict: 'id' })
+      if (profileError) {
+        console.warn('Profile creation fallback failed:', profileError.message)
+      }
+    }
     return {}
   },
 
