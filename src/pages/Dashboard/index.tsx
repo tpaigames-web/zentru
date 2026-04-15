@@ -79,7 +79,7 @@ export default function DashboardPage() {
 
       {/* Getting Started Guide */}
       {!guideDismissed && cards.length === 0 && transactions.length === 0 && (
-        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 shadow-sm">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold">{t('guide.welcome')}</h3>
             <button
