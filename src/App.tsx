@@ -51,7 +51,16 @@ export default function App() {
     setShowOnboarding(false)
   }
 
-  if (!ready || authLoading) return null
+  if (!ready || authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Show login first (before onboarding)
   const skipAuth = localStorage.getItem('zentru-skip-auth') === '1'
