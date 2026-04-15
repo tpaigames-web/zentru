@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 
@@ -6,12 +7,21 @@ interface ConfirmDialogProps {
   message: string
   confirmLabel?: string
   destructive?: boolean
+  /** Seconds to wait before confirm button is enabled (0 = no countdown) */
+  countdown?: number
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function ConfirmDialog({ title, message, confirmLabel, destructive = true, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, message, confirmLabel, destructive = true, countdown = 0, onConfirm, onCancel }: ConfirmDialogProps) {
   const { t } = useTranslation()
+  const [remaining, setRemaining] = useState(countdown)
+
+  useEffect(() => {
+    if (remaining <= 0) return
+    const timer = setTimeout(() => setRemaining(remaining - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [remaining])
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
@@ -29,9 +39,13 @@ export function ConfirmDialog({ title, message, confirmLabel, destructive = true
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
+            disabled={remaining > 0}
+            className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
           >
-            {confirmLabel || t('common.confirm')}
+            {remaining > 0
+              ? `${confirmLabel || t('common.confirm')} (${remaining}s)`
+              : confirmLabel || t('common.confirm')
+            }
           </button>
         </div>
       </div>

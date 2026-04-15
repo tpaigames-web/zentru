@@ -57,10 +57,16 @@ export default function CategoriesPage() {
     await updateCategory(id, { isActive: !isActive })
   }
 
-  const handleDeleteRequest = (id: string) => {
+  const handleDeleteRequest = async (id: string) => {
     const cat = categories.find((c) => c.id === id)
     const txCount = transactions.filter((tx) => tx.categoryId === id).length
-    setDeleteConfirm({ id, name: cat?.nameKey ? t(cat.nameKey) : cat?.name || '', txCount })
+    if (txCount === 0) {
+      // No linked records — delete immediately
+      await deleteCategory(id)
+    } else {
+      // Has linked records — show confirmation with countdown
+      setDeleteConfirm({ id, name: cat?.nameKey ? t(cat.nameKey) : cat?.name || '', txCount })
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -209,12 +215,9 @@ export default function CategoriesPage() {
       {deleteConfirm && (
         <ConfirmDialog
           title={t('categories.deleteTitle')}
-          message={
-            deleteConfirm.txCount > 0
-              ? t('categories.deleteWithTx', { name: deleteConfirm.name, count: deleteConfirm.txCount })
-              : t('categories.deleteEmpty', { name: deleteConfirm.name })
-          }
+          message={t('categories.deleteWithTx', { name: deleteConfirm.name, count: deleteConfirm.txCount })}
           confirmLabel={t('common.delete')}
+          countdown={3}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteConfirm(null)}
         />
