@@ -53,14 +53,14 @@ export default function App() {
 
   if (!ready || authLoading) return null
 
-  if (showOnboarding) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
-  }
-
-  // Show login if not logged in and not skipped
+  // Show login first (before onboarding)
   const skipAuth = localStorage.getItem('zentru-skip-auth') === '1'
   if (!user && !skipAuth) {
     return <LoginPage />
+  }
+
+  if (showOnboarding) {
+    return <Onboarding onComplete={handleOnboardingComplete} />
   }
 
   if (useAuthStore.getState().isLocked) {
