@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Onboarding } from '@/pages/Onboarding'
 import { LockScreen } from '@/components/LockScreen'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useUserStore } from '@/stores/useUserStore'
 import DashboardPage from '@/pages/Dashboard'
 import CardsPage from '@/pages/Cards'
 import CardDetailPage from '@/pages/Cards/CardDetail'
@@ -25,15 +26,20 @@ import AboutPage from '@/pages/Settings/About'
 import PrivacyPolicyPage from '@/pages/Settings/PrivacyPolicy'
 import LandingPage from '@/pages/Landing'
 import NotFoundPage from '@/pages/NotFound'
+import LoginPage from '@/pages/Auth/LoginPage'
 
 const ONBOARDING_KEY = 'zentru-onboarded'
 
 export default function App() {
   const [ready, setReady] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const { user, loading: authLoading, initialize } = useUserStore()
 
   useEffect(() => {
-    seedDefaultCategories().then(() => {
+    Promise.all([
+      seedDefaultCategories(),
+      initialize(),
+    ]).then(() => {
       const onboarded = localStorage.getItem(ONBOARDING_KEY)
       if (!onboarded) setShowOnboarding(true)
       setReady(true)
@@ -45,10 +51,16 @@ export default function App() {
     setShowOnboarding(false)
   }
 
-  if (!ready) return null
+  if (!ready || authLoading) return null
 
   if (showOnboarding) {
     return <Onboarding onComplete={handleOnboardingComplete} />
+  }
+
+  // Show login if not logged in and not skipped
+  const skipAuth = localStorage.getItem('zentru-skip-auth') === '1'
+  if (!user && !skipAuth) {
+    return <LoginPage />
   }
 
   if (useAuthStore.getState().isLocked) {

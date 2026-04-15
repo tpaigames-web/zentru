@@ -18,6 +18,17 @@
     "more": "More",
     "import": "Import"
   },
+  "paywall": {
+    "title": "Upgrade to Premium",
+    "featureRequired": "\"{{feature}}\" requires Premium.",
+    "unlimitedCards": "Unlimited credit cards",
+    "unlimitedTx": "Unlimited transactions per month",
+    "unlimitedPdf": "Unlimited PDF imports",
+    "allAnalytics": "All 7 analytics report tabs",
+    "smartCard": "Smart card recommendations",
+    "cloudSync": "Cross-device cloud sync",
+    "export": "Data export (CSV + backup)"
+  },
   "budget": {
     "emptyTitle": "No budgets set yet",
     "emptyDesc": "Set budgets for your spending categories to track and control expenses.",

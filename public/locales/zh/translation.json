@@ -18,6 +18,17 @@
     "more": "更多",
     "import": "导入"
   },
+  "paywall": {
+    "title": "升级到 Premium",
+    "featureRequired": "「{{feature}}」需要 Premium 会员。",
+    "unlimitedCards": "无限信用卡数量",
+    "unlimitedTx": "每月无限交易记录",
+    "unlimitedPdf": "无限 PDF 导入次数",
+    "allAnalytics": "全部 7 个分析报表",
+    "smartCard": "智能信用卡推荐",
+    "cloudSync": "跨设备云端同步",
+    "export": "数据导出（CSV + 备份）"
+  },
   "budget": {
     "emptyTitle": "还没有设置预算",
     "emptyDesc": "为你的消费分类设置预算，追踪和控制支出。",
