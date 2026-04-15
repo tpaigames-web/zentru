@@ -2,13 +2,15 @@ import { useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
-import { Moon, Sun, Globe, ChevronRight, DollarSign, Bell, Lock } from 'lucide-react'
+import { Moon, Sun, Globe, ChevronRight, DollarSign, Bell, Lock, LogOut, Cloud, Loader2, User, Crown } from 'lucide-react'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { CURRENCIES, type CurrencyCode } from '@/lib/currency'
 import { exportFullBackup, importFullBackup, exportTransactionsCSV, downloadFile, type BackupData } from '@/services/backup'
 import { showPersistentNotification, hidePersistentNotification, requestNotificationPermission } from '@/services/notification'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useUserStore } from '@/stores/useUserStore'
+import { uploadAllData, downloadAllData } from '@/services/syncService'
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation()
@@ -16,6 +18,9 @@ export default function SettingsPage() {
   const { theme, setTheme, setLanguage, currency, setCurrency, persistentNotification, setPersistentNotification } = useSettingsStore()
   const { transactions } = useTransactionStore()
   const restoreInputRef = useRef<HTMLInputElement>(null)
+  const { user, profile, signOut, isPremium } = useUserStore()
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
@@ -76,6 +81,78 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl md:text-2xl font-bold">{t('settings.title')}</h2>
+
+      {/* User account */}
+      {user ? (
+        <div className="rounded-xl border bg-card shadow-sm">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{profile?.displayName || user.email}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                {isPremium && <Crown className="h-3 w-3 text-warning" />}
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-4 border-t" />
+
+          {/* Sync buttons */}
+          <div className="flex gap-2 px-4 py-3">
+            <button
+              onClick={async () => {
+                setSyncing(true); setSyncMsg('')
+                const r = await uploadAllData(user.id)
+                setSyncMsg(r.success ? (i18n.language.startsWith('zh') ? '上传成功' : 'Upload done') : r.error || 'Error')
+                setSyncing(false)
+              }}
+              disabled={syncing}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
+              {i18n.language.startsWith('zh') ? '上传数据' : 'Upload'}
+            </button>
+            <button
+              onClick={async () => {
+                setSyncing(true); setSyncMsg('')
+                const r = await downloadAllData(user.id)
+                if (r.success) window.location.reload()
+                else { setSyncMsg(r.error || 'Error'); setSyncing(false) }
+              }}
+              disabled={syncing}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
+              {i18n.language.startsWith('zh') ? '下载数据' : 'Download'}
+            </button>
+          </div>
+          {syncMsg && <p className="px-4 pb-2 text-xs text-muted-foreground">{syncMsg}</p>}
+
+          <div className="mx-4 border-t" />
+
+          <button
+            onClick={async () => { await signOut(); localStorage.removeItem('zentru-skip-auth'); window.location.reload() }}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-destructive hover:bg-destructive/5 transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="text-sm font-medium">{i18n.language.startsWith('zh') ? '退出登录' : 'Sign Out'}</span>
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { localStorage.removeItem('zentru-skip-auth'); window.location.reload() }}
+          className="flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3.5 shadow-sm hover:bg-accent transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <User className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium">{i18n.language.startsWith('zh') ? '登录 / 注册' : 'Sign In / Sign Up'}</span>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+      )}
 
       <div className="rounded-xl border bg-card shadow-sm">
         <button onClick={toggleTheme} className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-accent">
