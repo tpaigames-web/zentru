@@ -18,6 +18,38 @@
     "more": "更多",
     "import": "导入"
   },
+  "budget": {
+    "emptyTitle": "还没有设置预算",
+    "emptyDesc": "为你的消费分类设置预算，追踪和控制支出。",
+    "addFirst": "设置第一个预算"
+  },
+  "smartCard": {
+    "bestPerCategory": "每个分类的最佳信用卡",
+    "addRulesHint": "为你的信用卡添加返现规则以获取推荐。",
+    "allCapped": "所有卡已封顶",
+    "left": "剩余"
+  },
+  "predictions": {
+    "nextExpense": "下月预计支出",
+    "nextIncome": "下月预计收入",
+    "spendingForecast": "支出预测",
+    "cashFlowForecast": "现金流预测",
+    "financialHealth": "财务健康",
+    "affordability": "可负担能力",
+    "sustainability": "可持续月数",
+    "income": "收入",
+    "cashOnHand": "现金余额",
+    "cashflowStrength": "你的现金流状况为",
+    "savingsRate": "储蓄率",
+    "monthlySavings": "月储蓄",
+    "budgetRec": "预算建议",
+    "budgetRecEmpty": "需要更多交易记录才能生成建议。",
+    "current": "当前",
+    "suggested": "建议",
+    "avg": "平均",
+    "perMonth": "/月",
+    "dashed": "虚线柱 = 预测值（加权移动平均）"
+  },
   "notFound": {
     "title": "页面不存在",
     "message": "你访问的页面不存在。",

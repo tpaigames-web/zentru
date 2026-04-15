@@ -281,7 +281,10 @@ export default function DashboardPage() {
               insight.type === 'achievement' ? 'border-success/20 bg-success/5' : 'border-primary/20 bg-primary/5',
             )}>
               <CategoryIcon name={insight.icon} className={cn('h-3.5 w-3.5', insight.type === 'warning' ? 'text-destructive' : insight.type === 'achievement' ? 'text-success' : 'text-primary')} />
-              <p className="text-xs font-medium whitespace-nowrap">{t(insight.titleKey, insight.titleParams)}</p>
+              <p className="text-xs font-medium whitespace-nowrap">{t(insight.titleKey, {
+                ...insight.titleParams,
+                ...(insight.titleParams?.category ? { category: t(String(insight.titleParams.category)) } : {}),
+              })}</p>
             </div>
           ))}
           {quickTemplates.map((tpl) => {

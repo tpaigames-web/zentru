@@ -143,11 +143,11 @@ export default function SmartCardPage() {
 
       {/* Smart Recommendations by Category */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">Best Card per Category</h3>
+        <h3 className="text-sm font-semibold mb-3">{t('smartCard.bestPerCategory')}</h3>
         {recommendations.length === 0 ? (
           <div className="rounded-xl border bg-card py-12 text-center shadow-sm">
             <p className="text-sm text-muted-foreground">
-              Add cashback rules to your cards to get recommendations.
+              {t('smartCard.addRulesHint')}
             </p>
           </div>
         ) : (
@@ -176,28 +176,30 @@ export default function SmartCardPage() {
                           </span>
                           {bestCard.remainingCap !== null && (
                             <span className="text-xs text-muted-foreground">
-                              · {formatAmount(bestCard.remainingCap, currency)} left
+                              · {formatAmount(bestCard.remainingCap, currency)} {t('smartCard.left')}
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs text-destructive">All cards capped</span>
+                        <span className="text-xs text-destructive">{t('smartCard.allCapped')}</span>
                       )}
                     </div>
 
-                    {/* Other cards */}
+                    {/* Other cards — show rate badges */}
                     {recs.length > 1 && (
-                      <div className="flex -space-x-1">
+                      <div className="flex gap-1">
                         {recs.slice(0, 3).map((r) => (
                           <div
                             key={r.cardId}
                             className={cn(
-                              'h-6 w-6 rounded-full border-2 border-card',
+                              'rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white',
                               r.isCapReached && 'opacity-40',
                             )}
                             style={{ backgroundColor: r.cardColor }}
-                            title={`${r.cardName} (${r.rate}%)${r.isCapReached ? ' - Capped' : ''}`}
-                          />
+                            title={r.cardName}
+                          >
+                            {r.rate}%
+                          </div>
                         ))}
                       </div>
                     )}

@@ -18,6 +18,38 @@
     "more": "More",
     "import": "Import"
   },
+  "budget": {
+    "emptyTitle": "No budgets set yet",
+    "emptyDesc": "Set budgets for your spending categories to track and control expenses.",
+    "addFirst": "Set Your First Budget"
+  },
+  "smartCard": {
+    "bestPerCategory": "Best Card per Category",
+    "addRulesHint": "Add cashback rules to your cards to get recommendations.",
+    "allCapped": "All cards capped",
+    "left": "left"
+  },
+  "predictions": {
+    "nextExpense": "Next Month Expense",
+    "nextIncome": "Next Month Income",
+    "spendingForecast": "Spending Forecast",
+    "cashFlowForecast": "Cash Flow Forecast",
+    "financialHealth": "Financial Health",
+    "affordability": "Affordability",
+    "sustainability": "Month(s) Sustainability",
+    "income": "Income",
+    "cashOnHand": "Cash-on-Hand",
+    "cashflowStrength": "Your cashflow strength is",
+    "savingsRate": "Savings rate",
+    "monthlySavings": "Monthly Savings",
+    "budgetRec": "Budget Recommendations",
+    "budgetRecEmpty": "Need more transaction history to generate recommendations.",
+    "current": "Current",
+    "suggested": "Suggested",
+    "avg": "Avg",
+    "perMonth": "/mo",
+    "dashed": "Dashed bars = predicted (weighted moving average)"
+  },
   "notFound": {
     "title": "Page Not Found",
     "message": "The page you're looking for doesn't exist.",

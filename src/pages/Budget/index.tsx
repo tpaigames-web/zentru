@@ -79,7 +79,15 @@ export default function BudgetPage() {
       {budgets.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 shadow-sm">
           <Wallet className="mb-4 h-12 w-12 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">{t('common.noData')}</p>
+          <p className="text-sm font-medium">{t('budget.emptyTitle')}</p>
+          <p className="mt-1 text-xs text-muted-foreground text-center px-8">{t('budget.emptyDesc')}</p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="mt-4 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t('budget.addFirst')}
+          </button>
         </div>
       ) : (
         <>

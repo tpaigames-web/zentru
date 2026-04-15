@@ -60,18 +60,18 @@ export default function PredictionsPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Next Month Expense</p>
+          <p className="text-xs text-muted-foreground">{t('predictions.nextExpense')}</p>
           <p className="mt-1 text-xl font-bold">{formatAmount(nextMonthExpense, currency)}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Next Month Income</p>
+          <p className="text-xs text-muted-foreground">{t('predictions.nextIncome')}</p>
           <p className="mt-1 text-xl font-bold text-success">{formatAmount(nextMonthIncome, currency)}</p>
         </div>
       </div>
 
       {/* Spending Forecast Chart */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold">Spending Forecast</h3>
+        <h3 className="mb-3 text-sm font-semibold">{t('predictions.spendingForecast')}</h3>
         {forecast.length === 0 || forecast.every((f) => f.predictedExpense === 0) ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t('common.noData')}</p>
         ) : (
@@ -81,34 +81,18 @@ export default function PredictionsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                <Bar
-                  dataKey="predictedExpense"
-                  name="Expense"
-                  radius={[4, 4, 0, 0]}
-                  barSize={20}
-                  fill="hsl(var(--destructive))"
-                  fillOpacity={0.8}
-                />
-                <Bar
-                  dataKey="predictedIncome"
-                  name="Income"
-                  radius={[4, 4, 0, 0]}
-                  barSize={20}
-                  fill="hsl(var(--success))"
-                  fillOpacity={0.8}
-                />
+                <Bar dataKey="predictedExpense" radius={[4, 4, 0, 0]} barSize={20} fill="hsl(var(--destructive))" fillOpacity={0.8} />
+                <Bar dataKey="predictedIncome" radius={[4, 4, 0, 0]} barSize={20} fill="hsl(var(--success))" fillOpacity={0.8} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
-        <p className="mt-2 text-xs text-muted-foreground text-center">
-          Dashed bars = predicted (weighted moving average)
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground text-center">{t('predictions.dashed')}</p>
       </div>
 
       {/* Cash Flow Forecast */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold">Cash Flow Forecast</h3>
+        <h3 className="mb-3 text-sm font-semibold">{t('predictions.cashFlowForecast')}</h3>
         {cashFlowForecast.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t('common.noData')}</p>
         ) : (
@@ -119,71 +103,60 @@ export default function PredictionsPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                <Bar dataKey="net" name="Net" radius={[4, 4, 0, 0]} barSize={18}>
+                <Bar dataKey="net" radius={[4, 4, 0, 0]} barSize={18}>
                   {cashFlowForecast.map((entry, i) => (
                     <rect key={i} fill={entry.net >= 0 ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} />
                   ))}
                 </Bar>
-                <Line
-                  type="monotone"
-                  dataKey="cumulativeNet"
-                  name="Cumulative"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="cumulativeNet" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
       </div>
 
-      {/* Financial Health — Finory style */}
+      {/* Financial Health */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold">Financial Health</h3>
+        <h3 className="mb-3 text-sm font-semibold">{t('predictions.financialHealth')}</h3>
 
-        {/* Affordability + Sustainability */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="rounded-lg bg-muted/30 p-3 text-center">
             <p className="text-lg font-bold">{formatAmount(health.affordability, currency)}</p>
-            <p className="text-[10px] text-muted-foreground">Affordability</p>
+            <p className="text-[10px] text-muted-foreground">{t('predictions.affordability')}</p>
           </div>
           <div className="rounded-lg bg-muted/30 p-3 text-center">
             <p className="text-lg font-bold">{health.sustainabilityMonths}</p>
-            <p className="text-[10px] text-muted-foreground">Month(s) Sustainability</p>
+            <p className="text-[10px] text-muted-foreground">{t('predictions.sustainability')}</p>
           </div>
         </div>
 
-        {/* Income + Cash on Hand */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
             <div>
               <p className="text-sm font-bold text-success">{formatAmount(health.incomeTotal, currency)}</p>
-              <p className="text-[10px] text-muted-foreground">Income</p>
+              <p className="text-[10px] text-muted-foreground">{t('predictions.income')}</p>
             </div>
           </div>
           <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
             <div>
               <p className="text-sm font-bold">{formatAmount(health.cashOnHand, currency)}</p>
-              <p className="text-[10px] text-muted-foreground">Cash-on-Hand</p>
+              <p className="text-[10px] text-muted-foreground">{t('predictions.cashOnHand')}</p>
             </div>
           </div>
         </div>
 
-        {/* Cashflow Strength */}
         <div className={cn(
           'rounded-lg px-3 py-2.5 text-center text-xs font-medium',
           health.cashflowStrength === 'HEALTHY' ? 'bg-success/10 text-success' :
           health.cashflowStrength === 'WARNING' ? 'bg-warning/10 text-warning' :
           'bg-destructive/10 text-destructive',
         )}>
-          Your cashflow strength is <span className="font-bold">{health.cashflowStrength}</span>
-          {health.savingsRate > 0 && ` · Savings rate ${health.savingsRate}%`}
+          {t('predictions.cashflowStrength')} <span className="font-bold">{health.cashflowStrength}</span>
+          {health.savingsRate > 0 && ` · ${t('predictions.savingsRate')} ${health.savingsRate}%`}
         </div>
 
-        {/* Monthly Savings */}
         <div className="mt-3 flex items-center justify-between border-t pt-3">
-          <span className="text-xs text-muted-foreground">Monthly Savings</span>
+          <span className="text-xs text-muted-foreground">{t('predictions.monthlySavings')}</span>
           <span className={cn('text-sm font-bold', health.monthlySavings >= 0 ? 'text-success' : 'text-destructive')}>
             {formatAmount(health.monthlySavings, currency)}
           </span>
@@ -194,12 +167,10 @@ export default function PredictionsPage() {
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
           <Lightbulb className="h-4 w-4 text-warning" />
-          Budget Recommendations
+          {t('predictions.budgetRec')}
         </h3>
         {recommendations.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Need more transaction history to generate recommendations.
-          </p>
+          <p className="py-4 text-center text-sm text-muted-foreground">{t('predictions.budgetRecEmpty')}</p>
         ) : (
           <div className="space-y-3">
             {recommendations.map((rec) => {
@@ -222,14 +193,14 @@ export default function PredictionsPage() {
                     <div className="mt-2 flex items-center gap-3 text-xs">
                       {rec.currentBudget !== undefined && (
                         <span className="text-muted-foreground">
-                          Current: {formatAmount(rec.currentBudget, currency)}
+                          {t('predictions.current')}: {formatAmount(rec.currentBudget, currency)}
                         </span>
                       )}
                       <span className="font-medium text-primary">
-                        Suggested: {formatAmount(rec.recommendedBudget, currency)}
+                        {t('predictions.suggested')}: {formatAmount(rec.recommendedBudget, currency)}
                       </span>
                       <span className="text-muted-foreground">
-                        Avg: {formatAmount(rec.averageSpend, currency)}/mo
+                        {t('predictions.avg')}: {formatAmount(rec.averageSpend, currency)}{t('predictions.perMonth')}
                       </span>
                     </div>
                   </div>
