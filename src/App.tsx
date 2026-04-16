@@ -1,32 +1,43 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { DataProvider } from '@/data/DataProvider'
 import { seedDefaultCategories } from '@/data/seed'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { Onboarding } from '@/pages/Onboarding'
-import { LockScreen } from '@/components/LockScreen'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserStore } from '@/stores/useUserStore'
-import DashboardPage from '@/pages/Dashboard'
-import CardsPage from '@/pages/Cards'
-import CardDetailPage from '@/pages/Cards/CardDetail'
-import TransactionsPage from '@/pages/Transactions'
-import NewTransactionPage from '@/pages/Transactions/NewTransaction'
-import AnalyticsPage from '@/pages/Analytics'
-import PredictionsPage from '@/pages/Predictions'
-import BudgetPage from '@/pages/Budget'
-import CashbackPage from '@/pages/Cashback'
-import SmartCardPage from '@/pages/SmartCard'
-import RecurringPage from '@/pages/Recurring'
-import CategoriesPage from '@/pages/Categories'
-import PaymentMethodsPage from '@/pages/PaymentMethods'
-import ImportPage from '@/pages/Import'
-import SettingsPage from '@/pages/Settings'
-import AboutPage from '@/pages/Settings/About'
-import PrivacyPolicyPage from '@/pages/Settings/PrivacyPolicy'
-import LandingPage from '@/pages/Landing'
-import NotFoundPage from '@/pages/NotFound'
-import LoginPage from '@/pages/Auth/LoginPage'
+
+// Lazy load all pages — each becomes a separate chunk
+const LoginPage = lazy(() => import('@/pages/Auth/LoginPage'))
+const Onboarding = lazy(() => import('@/pages/Onboarding').then(m => ({ default: m.Onboarding })))
+const LockScreen = lazy(() => import('@/components/LockScreen').then(m => ({ default: m.LockScreen })))
+const DashboardPage = lazy(() => import('@/pages/Dashboard'))
+const CardsPage = lazy(() => import('@/pages/Cards'))
+const CardDetailPage = lazy(() => import('@/pages/Cards/CardDetail'))
+const TransactionsPage = lazy(() => import('@/pages/Transactions'))
+const NewTransactionPage = lazy(() => import('@/pages/Transactions/NewTransaction'))
+const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
+const PredictionsPage = lazy(() => import('@/pages/Predictions'))
+const BudgetPage = lazy(() => import('@/pages/Budget'))
+const CashbackPage = lazy(() => import('@/pages/Cashback'))
+const SmartCardPage = lazy(() => import('@/pages/SmartCard'))
+const RecurringPage = lazy(() => import('@/pages/Recurring'))
+const CategoriesPage = lazy(() => import('@/pages/Categories'))
+const PaymentMethodsPage = lazy(() => import('@/pages/PaymentMethods'))
+const ImportPage = lazy(() => import('@/pages/Import'))
+const SettingsPage = lazy(() => import('@/pages/Settings'))
+const AboutPage = lazy(() => import('@/pages/Settings/About'))
+const PrivacyPolicyPage = lazy(() => import('@/pages/Settings/PrivacyPolicy'))
+const LandingPage = lazy(() => import('@/pages/Landing'))
+const NotFoundPage = lazy(() => import('@/pages/NotFound'))
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+      <div style={{ width: '32px', height: '32px', border: '3px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
 
 const ONBOARDING_KEY = 'zentru-onboarded'
 
@@ -99,43 +110,57 @@ export default function App() {
   // Show login first (before onboarding)
   const skipAuth = localStorage.getItem('zentru-skip-auth') === '1'
   if (!user && !skipAuth) {
-    return <LoginPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LoginPage />
+      </Suspense>
+    )
   }
 
   if (showOnboarding) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Onboarding onComplete={handleOnboardingComplete} />
+      </Suspense>
+    )
   }
 
   if (useAuthStore.getState().isLocked) {
-    return <LockScreen />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LockScreen />
+      </Suspense>
+    )
   }
 
   return (
     <DataProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <Routes>
-          <Route path="landing" element={<LandingPage />} />
-          <Route element={<AppLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="cards" element={<CardsPage />} />
-            <Route path="cards/:id" element={<CardDetailPage />} />
-            <Route path="transactions" element={<TransactionsPage />} />
-            <Route path="transactions/new" element={<NewTransactionPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="predictions" element={<PredictionsPage />} />
-            <Route path="budget" element={<BudgetPage />} />
-            <Route path="cashback" element={<CashbackPage />} />
-            <Route path="smart" element={<SmartCardPage />} />
-            <Route path="recurring" element={<RecurringPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
-            <Route path="payment-methods" element={<PaymentMethodsPage />} />
-            <Route path="import" element={<ImportPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="about" element={<AboutPage />} />
-            <Route path="privacy" element={<PrivacyPolicyPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="landing" element={<LandingPage />} />
+            <Route element={<AppLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="cards" element={<CardsPage />} />
+              <Route path="cards/:id" element={<CardDetailPage />} />
+              <Route path="transactions" element={<TransactionsPage />} />
+              <Route path="transactions/new" element={<NewTransactionPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="predictions" element={<PredictionsPage />} />
+              <Route path="budget" element={<BudgetPage />} />
+              <Route path="cashback" element={<CashbackPage />} />
+              <Route path="smart" element={<SmartCardPage />} />
+              <Route path="recurring" element={<RecurringPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="payment-methods" element={<PaymentMethodsPage />} />
+              <Route path="import" element={<ImportPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="privacy" element={<PrivacyPolicyPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </DataProvider>
   )
