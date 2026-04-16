@@ -2,7 +2,8 @@ import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck, Mail, CheckCircle2, AlertTriangle, FileSpreadsheet } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { parseStatement, type ParsedStatement, type ParsedTransaction } from '@/services/pdfParser'
+import { parseStatement, extractPdfText, sanitizeForSample, type ParsedStatement, type ParsedTransaction } from '@/services/pdfParser'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { parseCSV } from '@/services/csvParser'
 import { autoDetectCategory } from '@/services/autoCategory'
 import { matchCardProduct } from '@/config/cardCatalog'
@@ -52,6 +53,8 @@ export default function ImportPage() {
   const [selectedTx, setSelectedTx] = useState<Set<number>>(new Set())
   const [importedCount, setImportedCount] = useState(0)
   const [duplicateIndices, setDuplicateIndices] = useState<Set<number>>(new Set())
+  const [shareSample, setShareSample] = useState(false)
+  const [sampleData, setSampleData] = useState<{ bank: string; cardProduct?: string; rawText: string; txCount: number }[]>([])
 
   const expenseCategories = getExpenseCategories()
   const defaultCategoryId = expenseCategories[expenseCategories.length - 1]?.id || ''
@@ -142,12 +145,25 @@ export default function ImportPage() {
     try {
       const allStatements: ParsedStatement[] = []
       const allMerged: MergedTransaction[] = []
+      const allSamples: { bank: string; cardProduct?: string; rawText: string; txCount: number }[] = []
 
       for (let fi = 0; fi < pdfFiles.length; fi++) {
         const file = pdfFiles[fi]
         setLoadingProgress(`${fi + 1} / ${pdfFiles.length}: ${file.name}`)
 
+        // Extract raw text for optional sample submission
+        const rawTextForSample = await extractPdfText(file)
+
         const result = await parseStatement(file)
+
+        // Collect sample data (sanitized later if user opts in)
+        allSamples.push({
+          bank: result.bank,
+          cardProduct: result.cardProductName,
+          rawText: rawTextForSample,
+          txCount: result.transactions.length,
+        })
+
         if (result.transactions.length === 0) continue
 
         allStatements.push(result)
@@ -187,6 +203,8 @@ export default function ImportPage() {
           }
         }
       }
+
+      setSampleData(allSamples)
 
       if (allMerged.length === 0) {
         setError('No transactions found in the selected PDF(s).')
@@ -327,6 +345,26 @@ export default function ImportPage() {
         importSource,
       })
       count++
+    }
+
+    // Submit anonymized samples if user opted in
+    if (shareSample && isSupabaseConfigured && sampleData.length > 0) {
+      try {
+        for (const sample of sampleData) {
+          const sanitized = sanitizeForSample(sample.rawText)
+          await supabase.from('statement_samples').insert({
+            bank: sample.bank,
+            card_product: sample.cardProduct || null,
+            transaction_count: sample.txCount,
+            parse_success: sample.txCount > 0,
+            sample_text: sanitized,
+          })
+        }
+      } catch (e) {
+        console.warn('Sample submission failed (non-critical):', e)
+      }
+      // Clear raw text from memory
+      setSampleData([])
     }
 
     setImportedCount(count)
@@ -577,9 +615,29 @@ export default function ImportPage() {
             </div>
           </div>
 
+          {/* Sample sharing opt-in */}
+          {mode === 'pdf' && isSupabaseConfigured && sampleData.length > 0 && (
+            <label className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors">
+              <input
+                type="checkbox"
+                checked={shareSample}
+                onChange={(e) => setShareSample(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input"
+              />
+              <div className="flex-1">
+                <p className="text-xs font-medium">
+                  {t('import.shareSampleTitle', { defaultValue: '帮助改善解析准确率（可选）' })}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t('import.shareSampleDesc', { defaultValue: '匿名提交账单格式样本。所有金额、卡号、姓名等个人信息已自动脱敏，仅用于优化 PDF 解析。' })}
+                </p>
+              </div>
+            </label>
+          )}
+
           <div className="flex gap-3">
             <button
-              onClick={() => { setStep('upload'); setStatements([]); setMergedTx([]); setError('') }}
+              onClick={() => { setStep('upload'); setStatements([]); setMergedTx([]); setError(''); setSampleData([]) }}
               className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
             >
               {t('common.back')}

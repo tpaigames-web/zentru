@@ -257,6 +257,68 @@ function detectCardProductName(text: string): string | undefined {
   return undefined
 }
 
+/**
+ * Sanitize PDF text for anonymous sample submission.
+ * Removes all personal/financial data, keeps only structural format.
+ *
+ * What gets redacted:
+ * - Card numbers (full/partial) → XXXX XXXX XXXX XXXX
+ * - All monetary amounts → 0.00
+ * - Malaysian IC numbers → XXXXXX-XX-XXXX
+ * - Email addresses → xxx@xxx.com
+ * - Phone numbers → XXX-XXXXXXX
+ * - Uppercase full names (2-4 word patterns) → NAME REDACTED
+ * - Account numbers (8+ digits) → XXXXXXXX
+ *
+ * What's preserved:
+ * - Date formats and positions
+ * - Bank headers and logos text
+ * - Transaction structure patterns (field order, separators)
+ * - Line count and layout
+ */
+export function sanitizeForSample(text: string): string {
+  let s = text
+
+  // 1. Card numbers: 16 digits with spaces/dashes/stars
+  s = s.replace(/\b\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+\d{4}\b/g, 'XXXX XXXX XXXX XXXX')
+  // Partial card: 4+4 with mask
+  s = s.replace(/\b\d{4}[\s\-*xX]+\d{4}\b/g, 'XXXX XXXX')
+
+  // 2. Malaysian IC: 123456-12-1234
+  s = s.replace(/\b\d{6}[\s\-]\d{2}[\s\-]\d{4}\b/g, 'XXXXXX-XX-XXXX')
+
+  // 3. Email addresses
+  s = s.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, 'xxx@xxx.com')
+
+  // 4. Phone numbers: 01X-XXXXXXX, +60XXXXXXXXX, etc.
+  s = s.replace(/\+?6?0\d[\s\-]?\d{3,4}[\s\-]?\d{4}/g, 'XXX-XXXXXXX')
+
+  // 5. Monetary amounts: 1,234.56 or 123.45 → 0.00
+  s = s.replace(/\b\d{1,3}(?:,\d{3})*\.\d{2}\b/g, '0.00')
+
+  // 6. Account numbers: sequences of 8+ digits (not dates)
+  s = s.replace(/\b\d{8,}\b/g, 'XXXXXXXX')
+
+  // 7. Uppercase full names (2-4 capitalized words, min 5 chars each word — likely names)
+  // e.g. "MOHAMMAD BIN ABDULLAH", "TAN AH KEAT"
+  s = s.replace(/\b[A-Z]{2,}(?:\s+(?:BIN|BINTI|A\/L|A\/P|S\/O|D\/O)\s+)?[A-Z]{2,}(?:\s+[A-Z]{2,}){0,2}\b/g, (match) => {
+    // Don't redact known bank/structural terms
+    const keepPatterns = /^(?:VISA|MASTERCARD|AMEX|AMERICAN EXPRESS|CREDIT|DEBIT|CARD|STATEMENT|PAYMENT|BALANCE|TOTAL|DATE|AMOUNT|DESCRIPTION|REFERENCE|TRANSACTION|MINIMUM|PREVIOUS|CURRENT|DUE|LIMIT|AVAILABLE|PAGE|BANK|MALAYSIA|BERHAD|SDN BHD|PTY LTD|INTEREST|RATE|ANNUAL|FEE|CASHBACK|REWARD|POINT|PLATINUM|GOLD|CLASSIC|SIGNATURE|INFINITE|WORLD|PREMIER|ISLAMIC|AMANAH|IKHWAN|PETRONAS|SHELL|GRAB|SHOPEE|LAZADA|NEW|SUB|CLOSING|OPENING|YOUR|JUMLAH|TARIKH|PENYATA|BAYARAN|BAKI|KREDIT|AKHIR|NAMA|NOMBOR)/i
+    if (keepPatterns.test(match)) return match
+    // Don't redact short matches (likely abbreviations or structural)
+    if (match.length < 8) return match
+    return 'NAME REDACTED'
+  })
+
+  // 8. Truncate to first 500 lines max (enough for format analysis)
+  const lines = s.split('\n')
+  if (lines.length > 500) {
+    s = lines.slice(0, 500).join('\n') + '\n... [TRUNCATED]'
+  }
+
+  return s
+}
+
 function parseDateStr(dateStr: string, year?: number, stmtMonth?: number): string {
   const currentYear = year || new Date().getFullYear()
 
