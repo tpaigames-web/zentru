@@ -6,6 +6,10 @@ import path from 'path'
 
 export default defineConfig({
   base: process.env.GITHUB_PAGES ? '/zentru/' : '/',
+  define: {
+    // Inject build timestamp as app version for cache-busting
+    __APP_VERSION__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),
