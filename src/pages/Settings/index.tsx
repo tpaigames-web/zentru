@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Moon, Sun, Globe, ChevronRight, DollarSign, Bell, Lock, LogOut, Cloud, Loader2, User, Crown } from 'lucide-react'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
-import { CURRENCIES, type CurrencyCode } from '@/lib/currency'
+import { CURRENCIES } from '@/lib/currency'
 import { exportFullBackup, importFullBackup, exportTransactionsCSV, downloadFile, type BackupData } from '@/services/backup'
 import { showPersistentNotification, hidePersistentNotification, requestNotificationPermission } from '@/services/notification'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -30,13 +30,6 @@ export default function SettingsPage() {
     const newLang = i18n.language.startsWith('zh') ? 'en' : 'zh'
     i18n.changeLanguage(newLang)
     setLanguage(newLang)
-  }
-
-  const cycleCurrency = () => {
-    const codes = CURRENCIES.map((c) => c.code)
-    const idx = codes.indexOf(currency as CurrencyCode)
-    const next = codes[(idx >= 0 ? idx + 1 : 1) % codes.length]
-    setCurrency(next)
   }
 
   const handleExportCSV = () => {
@@ -64,8 +57,6 @@ export default function SettingsPage() {
       alert('Invalid backup file')
     }
   }
-
-  const currentCurrencyLabel = CURRENCIES.find((c) => c.code === currency)
 
   const settingItems = [
     { labelKey: 'settings.categories', action: () => navigate('/categories') },
@@ -175,15 +166,23 @@ export default function SettingsPage() {
 
         <div className="mx-4 border-t" />
 
-        <button onClick={cycleCurrency} className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-accent">
+        <div className="flex w-full items-center justify-between px-4 py-3.5">
           <div className="flex items-center gap-3">
             <DollarSign className="h-5 w-5 text-primary" />
             <span className="text-sm font-medium">{t('settings.currency')}</span>
           </div>
-          <span className="text-sm text-muted-foreground">
-            {currentCurrencyLabel ? `${currentCurrencyLabel.symbol} ${t(currentCurrencyLabel.nameKey)}` : currency}
-          </span>
-        </button>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className="rounded-lg border bg-card px-2 py-1.5 text-sm text-right outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.symbol} {c.code}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="mx-4 border-t" />
 
