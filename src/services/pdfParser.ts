@@ -766,47 +766,50 @@ function parseSavingsAccount(text: string, bank: string): ParsedStatement {
     }
   } else {
     // CIMB eStatement: DD/MM/YYYY DESCRIPTION AMOUNT BALANCE
-    // Transactions start with date, followed by description + amount on same or next lines
-    // Withdrawal column = expense, Deposits column = income
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
+    // Strategy: collect all (date, desc, amount, balance) rows,
+    // then compare consecutive balances to determine income vs expense.
+    // If balance goes UP → income (deposit), DOWN → expense (withdrawal).
+    interface RawTx { dateStr: string; description: string; amount: number; balance: number }
+    const rawTxs: RawTx[] = []
 
-      // Match: DD/MM/YYYY DESCRIPTION AMOUNT BALANCE
+    for (const line of lines) {
       const m = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s+(\d{1,3}(?:,\d{3})*\.\d{2})$/)
       if (!m) continue
 
-      const dateStr = m[1]
-      let description = m[2].trim()
+      const description = m[2].trim()
       const amount = parseFloat(m[3].replace(/,/g, ''))
-      // Balance is m[4] — we don't need it
+      const balance = parseFloat(m[4].replace(/,/g, ''))
 
       if (amount <= 0) continue
       if (/OPENING\s*BALANCE|CLOSING\s*BALANCE|TOTAL|BALANCE\s*BROUGHT/i.test(description)) continue
-
-      // Check if this is a deposit (income) or withdrawal (expense)
-      // In CIMB eStatement, deposits appear in a different column position
-      // If the amount appears more to the right, it's a deposit
-      // Simple heuristic: check if amount is in withdrawal or deposit column
-      const amountPos = line.indexOf(m[3])
-      const lineLen = line.length
-      const isDeposit = amountPos > lineLen * 0.45 && amountPos < lineLen * 0.7
-
-      // Clean description: remove reference numbers, multi-line leftovers
-      description = description
-        .replace(/[A-Z]\d{4,}/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-
-      // Skip non-transaction lines
       if (/^Page\s|^Statement|^Date\s|^Tarikh/i.test(description)) continue
       if (description.length < 3) continue
 
+      rawTxs.push({ dateStr: m[1], description, amount, balance })
+    }
+
+    // Also find opening balance from text
+    const openingMatch = text.match(/OPENING\s*BALANCE\s+(\d{1,3}(?:,\d{3})*\.\d{2})/i)
+    let prevBalance = openingMatch ? parseFloat(openingMatch[1].replace(/,/g, '')) : 0
+
+    for (const tx of rawTxs) {
+      // Compare balance change to determine type
+      // Balance went up → deposit (income), balance went down → withdrawal (expense)
+      const isDeposit = tx.balance > prevBalance
+
+      let desc = tx.description
+        .replace(/[A-Z]\d{5,}/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+
       transactions.push({
-        date: parseDateStr(dateStr),
-        description,
-        amount,
+        date: parseDateStr(tx.dateStr),
+        description: desc,
+        amount: tx.amount,
         type: isDeposit ? 'income' : 'expense',
       })
+
+      prevBalance = tx.balance
     }
   }
 
