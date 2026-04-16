@@ -34,7 +34,7 @@ interface MergedTransaction extends ParsedTransaction {
 }
 
 export default function ImportPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { addTransaction, transactions: existingTransactions } = useTransactionStore()
   const { cards, addCard } = useCardStore()
@@ -55,6 +55,7 @@ export default function ImportPage() {
   const [duplicateIndices, setDuplicateIndices] = useState<Set<number>>(new Set())
   const [shareSample, setShareSample] = useState(false)
   const [sampleData, setSampleData] = useState<{ bank: string; cardProduct?: string; rawText: string; txCount: number }[]>([])
+  const [isDragging, setIsDragging] = useState(false)
 
   const expenseCategories = getExpenseCategories()
   const defaultCategoryId = expenseCategories[expenseCategories.length - 1]?.id || ''
@@ -129,11 +130,8 @@ export default function ImportPage() {
     return ''
   }
 
-  const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    const pdfFiles = Array.from(files).filter((f) => f.name.toLowerCase().endsWith('.pdf'))
+  const processPdfFiles = async (fileList: File[]) => {
+    const pdfFiles = fileList.filter((f) => f.name.toLowerCase().endsWith('.pdf'))
     if (pdfFiles.length === 0) {
       setError('Please select PDF files')
       return
@@ -141,6 +139,7 @@ export default function ImportPage() {
 
     setIsLoading(true)
     setError('')
+    setIsDragging(false)
 
     try {
       const allStatements: ParsedStatement[] = []
@@ -219,6 +218,36 @@ export default function ImportPage() {
 
     setIsLoading(false)
     setLoadingProgress('')
+  }
+
+  const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    await processPdfFiles(Array.from(files))
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      if (mode === 'pdf') {
+        await processPdfFiles(files)
+      }
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
   }
 
   const handleCsvSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,11 +437,29 @@ export default function ImportPage() {
         <div className="space-y-4">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-12 hover:border-primary/50 hover:bg-accent/30 transition-colors"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={cn(
+              'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-12 transition-colors',
+              isDragging
+                ? 'border-primary bg-primary/10 scale-[1.02]'
+                : 'hover:border-primary/50 hover:bg-accent/30'
+            )}
           >
-            <Upload className="mb-3 h-10 w-10 text-primary/40" />
-            <p className="text-sm font-medium">{t('import.selectPdf')}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{t('import.batchSupport')}</p>
+            <Upload className={cn('mb-3 h-10 w-10 transition-colors', isDragging ? 'text-primary' : 'text-primary/40')} />
+            <p className="text-sm font-medium">
+              {isDragging
+                ? (i18n.language.startsWith('zh') ? '松开以导入' : 'Drop to import')
+                : t('import.selectPdf')
+              }
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isDragging
+                ? ''
+                : (i18n.language.startsWith('zh') ? '点击选择或拖拽 PDF 文件到这里' : 'Click to select or drag PDF files here')
+              }
+            </p>
           </div>
 
           {/* Bank support levels */}
