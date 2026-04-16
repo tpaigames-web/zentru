@@ -4,10 +4,12 @@ import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { useInitStores } from '@/hooks/useInitStores'
 import { useNotificationNavigation } from '@/hooks/useNotificationNavigation'
+import { useAutoSync } from '@/hooks/useAutoSync'
 
 export function AppLayout() {
   useInitStores()
   useNotificationNavigation()
+  useAutoSync()
 
   return (
     <div className="flex h-full w-full overflow-hidden">

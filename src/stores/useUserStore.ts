@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { downloadAllData, hasRemoteData } from '@/services/syncService'
 import type { User } from '@supabase/supabase-js'
 
 interface UserProfile {
@@ -49,10 +50,26 @@ export const useUserStore = create<UserState>()((set, get) => ({
     set({ loading: false })
 
     // Listen for auth changes
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         set({ user: session.user })
         await get().refreshProfile()
+
+        // Auto-download data on sign-in (new device sync)
+        if (event === 'SIGNED_IN') {
+          try {
+            const hasData = await hasRemoteData(session.user.id)
+            if (hasData) {
+              console.log('Auto-syncing data from cloud...')
+              const result = await downloadAllData(session.user.id)
+              if (result.success) {
+                console.log('Cloud data synced successfully')
+              }
+            }
+          } catch (e) {
+            console.warn('Auto-sync failed (non-critical):', e)
+          }
+        }
       } else {
         set({ user: null, profile: null, isPremium: false })
       }
