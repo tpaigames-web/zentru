@@ -194,10 +194,18 @@ export default function NewTransactionPage() {
         <div>
           <label className="block text-sm font-medium mb-1.5">{t('transactions.amount')} ({currency})</label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) setAmount(v)
+            }}
+            onFocus={(e) => {
+              // Scroll input into view when keyboard opens
+              setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
+            }}
             className={cn(inputClass, 'text-xl md:text-2xl font-bold h-14')}
             placeholder="0.00"
             autoFocus

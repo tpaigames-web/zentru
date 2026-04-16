@@ -36,6 +36,20 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const { user, loading: authLoading, initialize } = useUserStore()
 
+  // Prevent back button from closing the app (Android/PWA)
+  useEffect(() => {
+    // Push an initial state so there's always history to go back to
+    window.history.pushState(null, '', window.location.href)
+
+    const handlePopState = () => {
+      // Re-push state to prevent exiting
+      window.history.pushState(null, '', window.location.href)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   useEffect(() => {
     Promise.all([
       seedDefaultCategories().catch((e) => console.warn('Seed failed:', e)),
