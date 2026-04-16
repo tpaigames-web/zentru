@@ -130,7 +130,7 @@ export default function ImportPage() {
     return ''
   }
 
-  const processPdfFiles = async (fileList: File[]) => {
+  const processPdfFiles = async (fileList: File[], password?: string) => {
     const pdfFiles = fileList.filter((f) => f.name.toLowerCase().endsWith('.pdf'))
     if (pdfFiles.length === 0) {
       setError('Please select PDF files')
@@ -151,9 +151,9 @@ export default function ImportPage() {
         setLoadingProgress(`${fi + 1} / ${pdfFiles.length}: ${file.name}`)
 
         // Extract raw text for optional sample submission
-        const rawTextForSample = await extractPdfText(file)
+        const rawTextForSample = await extractPdfText(file, password)
 
-        const result = await parseStatement(file)
+        const result = await parseStatement(file, password)
 
         // Collect sample data (sanitized later if user opts in)
         allSamples.push({
@@ -213,7 +213,20 @@ export default function ImportPage() {
 
       finishParsing(allStatements, allMerged)
     } catch (err) {
-      setError(`Failed to parse PDF: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/password|PasswordException/i.test(msg)) {
+        // PDF is password-protected — prompt user
+        const pwd = prompt(i18n.language.startsWith('zh')
+          ? 'PDF 需要密码（通常是手机号或身份证号）：'
+          : 'PDF is password-protected. Enter password (usually phone number or IC):')
+        if (pwd) {
+          setIsLoading(false)
+          return processPdfFiles(pdfFiles, pwd)
+        }
+        setError(i18n.language.startsWith('zh') ? 'PDF 需要密码才能打开' : 'PDF requires a password to open')
+      } else {
+        setError(`Failed to parse PDF: ${msg}`)
+      }
     }
 
     setIsLoading(false)

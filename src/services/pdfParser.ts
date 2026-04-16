@@ -42,9 +42,9 @@ export interface ParsedStatement {
  * wrong for multi-column PDFs (common in bank statements). We use the transform
  * coordinates to sort items by position: group by Y (rows), sort by X within rows.
  */
-export async function extractPdfText(file: File): Promise<string> {
+export async function extractPdfText(file: File, password?: string): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, password: password || undefined }).promise
 
   const pages: string[] = []
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -115,9 +115,157 @@ export function detectBank(text: string): string | null {
  * - Only structured transaction data (date, amount, description) is returned
  * - No personal identifiers (full card number, name, address) are retained
  */
-export async function parseStatement(file: File): Promise<ParsedStatement> {
+/**
+ * Extract raw items with coordinates from all pages of a PDF.
+ * Used by TNG parser which needs column-based extraction.
+ */
+async function extractPdfItems(file: File, password?: string): Promise<{ str: string; x: number; y: number; page: number }[]> {
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, password: password || undefined }).promise
+  const allItems: { str: string; x: number; y: number; page: number }[] = []
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    for (const item of content.items) {
+      if (!('str' in item) || !item.str?.trim()) continue
+      const t = (item as { transform: number[] }).transform
+      if (t) {
+        allItems.push({ str: item.str.trim(), x: Math.round(t[4]), y: Math.round(t[5]), page: i })
+      }
+    }
+  }
+  return allItems
+}
+
+/**
+ * Parse TNG eWallet transaction PDF.
+ * TNG uses a columnar table: each X position = one transaction.
+ * Rows (top to bottom): balance_after, amount, balance_before, details, description, ref, type, status, date
+ */
+async function parseTNGStatement(file: File): Promise<ParsedStatement> {
+  const allItems = await extractPdfItems(file)
+  const transactions: ParsedTransaction[] = []
+
+  // Process page by page
+  const pageNums = [...new Set(allItems.map((it) => it.page))]
+
+  for (const pageNum of pageNums) {
+    const pageItems = allItems.filter((it) => it.page === pageNum)
+
+    // Group by Y rows
+    pageItems.sort((a, b) => b.y - a.y || a.x - b.x)
+    const ROW_THRESHOLD = 5
+    const rows: { str: string; x: number }[][] = []
+    let currentRow: { str: string; x: number }[] = []
+    let currentY = pageItems[0]?.y ?? 0
+    for (const item of pageItems) {
+      if (Math.abs(item.y - currentY) > ROW_THRESHOLD) {
+        if (currentRow.length > 0) rows.push(currentRow)
+        currentRow = []
+        currentY = item.y
+      }
+      currentRow.push({ str: item.str, x: item.x })
+    }
+    if (currentRow.length > 0) rows.push(currentRow)
+
+    // Find key rows by content pattern
+    let dateRow: { str: string; x: number }[] | undefined
+    let typeRow: { str: string; x: number }[] | undefined
+    let descRow: { str: string; x: number }[] | undefined
+    const amountRows: { str: string; x: number }[][] = []
+
+    for (const row of rows) {
+      const firstStr = row[0]?.str || ''
+      // Date row: contains DD/M/YYYY or DD/MM/YYYY
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(firstStr) && row.length >= 3) {
+        dateRow = row
+      }
+      // Transaction type row
+      else if (/eWallet Cash Out|Receive from|DUITNOW|Reload|Transfer to/i.test(row.map((r) => r.str).join(' '))) {
+        typeRow = row
+      }
+      // Amount rows: all items start with RM
+      else if (row.every((r) => /^RM[\d,.]+$/.test(r.str)) && row.length >= 3) {
+        amountRows.push(row)
+      }
+      // Description row: contains names or merchant names (not reference numbers)
+      else if (row.some((r) => /^[A-Z][a-z]|Via eWallet|Quick Reload|SDN BHD|HOLDING/i.test(r.str)) && !dateRow) {
+        descRow = row
+      }
+    }
+
+    if (!dateRow || !typeRow || amountRows.length < 2) continue
+
+    // Get all X positions from date row (each = one transaction)
+    const txPositions = dateRow.map((d) => d.x).sort((a, b) => a - b)
+
+    // Helper: find nearest item at given X position in a row
+    const findAt = (row: { str: string; x: number }[], targetX: number): string | undefined => {
+      const threshold = 20
+      const match = row.find((r) => Math.abs(r.x - targetX) < threshold)
+      return match?.str
+    }
+
+    for (const txX of txPositions) {
+      const date = findAt(dateRow, txX)
+      if (!date || !/\d{1,2}\/\d{1,2}\/\d{4}/.test(date)) continue
+
+      const typeStr = findAt(typeRow, txX) || ''
+
+      // Find amount: look through amount rows for this X position
+      let amount = 0
+      for (const amtRow of amountRows) {
+        const amtStr = findAt(amtRow, txX)
+        if (amtStr) {
+          const val = parseFloat(amtStr.replace(/[RM,]/g, ''))
+          if (val > 0 && val > amount) amount = val
+        }
+      }
+      if (amount <= 0) continue
+
+      // Get description
+      let description = findAt(descRow || [], txX) || typeStr
+
+      // Determine type from transaction type keywords
+      const isExpense = /Cash Out|TRANSFERTO|Transfer to|Payment/i.test(typeStr)
+      const isIncome = /Receive|RECEIVEFROM|Reload/i.test(typeStr)
+      if (!isExpense && !isIncome) continue
+
+      // Clean description
+      description = description
+        .replace(/Via eWallet to GO\+/i, 'GO+ Cash Out')
+        .replace(/Quick Reload Payment \(via GO\+/i, 'GO+ Reload')
+        .replace(/Balance\)/i, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+      if (description.length < 2) description = typeStr
+
+      transactions.push({
+        date: parseDateStr(date),
+        description,
+        amount,
+        type: isExpense ? 'expense' : 'income',
+      })
+    }
+  }
+
+  return {
+    bank: 'tng',
+    cardProductName: 'TNG eWallet',
+    transactions,
+    rawText: '',
+  }
+}
+
+export async function parseStatement(file: File, password?: string): Promise<ParsedStatement> {
   // Step 1: Extract text from PDF (on device only)
-  const rawText = await extractPdfText(file)
+  const rawText = await extractPdfText(file, password)
+
+  // Step 1.5: Detect TNG eWallet (uses special columnar parser)
+  if (/TNG WALLET TRANSACTION/i.test(rawText)) {
+    return parseTNGStatement(file)
+  }
 
   // Step 2: Detect bank and parse transactions
   const bank = detectBank(rawText)
