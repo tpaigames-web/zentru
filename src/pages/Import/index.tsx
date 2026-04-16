@@ -130,12 +130,16 @@ export default function ImportPage() {
     return ''
   }
 
+  const pendingFilesRef = useRef<File[]>([])
+
   const processPdfFiles = async (fileList: File[], password?: string) => {
     const pdfFiles = fileList.filter((f) => f.name.toLowerCase().endsWith('.pdf'))
     if (pdfFiles.length === 0) {
       setError('Please select PDF files')
       return
     }
+    // Store files for potential password retry
+    pendingFilesRef.current = pdfFiles
 
     setIsLoading(true)
     setError('')
@@ -214,16 +218,19 @@ export default function ImportPage() {
       finishParsing(allStatements, allMerged)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (/password|PasswordException/i.test(msg)) {
+      if (/password|PasswordException|No password given|Incorrect Password/i.test(msg)) {
+        setIsLoading(false)
+        setLoadingProgress('')
         // PDF is password-protected — prompt user
-        const pwd = prompt(i18n.language.startsWith('zh')
+        const zh = i18n.language.startsWith('zh')
+        const pwd = prompt(zh
           ? 'PDF 需要密码（通常是手机号或身份证号）：'
           : 'PDF is password-protected. Enter password (usually phone number or IC):')
         if (pwd) {
-          setIsLoading(false)
-          return processPdfFiles(pdfFiles, pwd)
+          return processPdfFiles(pendingFilesRef.current, pwd)
         }
-        setError(i18n.language.startsWith('zh') ? 'PDF 需要密码才能打开' : 'PDF requires a password to open')
+        setError(zh ? 'PDF 需要密码才能打开' : 'PDF requires a password to open')
+        return
       } else {
         setError(`Failed to parse PDF: ${msg}`)
       }
