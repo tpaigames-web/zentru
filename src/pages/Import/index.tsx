@@ -151,15 +151,40 @@ export default function ImportPage() {
         if (result.transactions.length === 0) continue
 
         allStatements.push(result)
-        const cardId = await matchOrCreateCard(result)
+        const bankLabel = BANK_NAMES[result.bank] || result.bank
 
-        for (const tx of result.transactions) {
-          allMerged.push({
-            ...tx,
-            sourceFile: file.name,
-            sourceBank: BANK_NAMES[result.bank] || result.bank,
-            matchedCardId: cardId,
-          })
+        if (result.cardSections && result.cardSections.length > 1) {
+          // Multi-card PDF: match each card section independently
+          for (const section of result.cardSections) {
+            const sectionResult: ParsedStatement = {
+              ...result,
+              cardNumber: section.cardNumber,
+              cardProductName: section.cardProductName,
+              transactions: section.transactions,
+            }
+            const cardId = await matchOrCreateCard(sectionResult)
+
+            for (const tx of section.transactions) {
+              allMerged.push({
+                ...tx,
+                sourceFile: file.name,
+                sourceBank: bankLabel,
+                matchedCardId: cardId,
+              })
+            }
+          }
+        } else {
+          // Single-card PDF: existing behavior
+          const cardId = await matchOrCreateCard(result)
+
+          for (const tx of result.transactions) {
+            allMerged.push({
+              ...tx,
+              sourceFile: file.name,
+              sourceBank: bankLabel,
+              matchedCardId: cardId,
+            })
+          }
         }
       }
 
@@ -474,10 +499,23 @@ export default function ImportPage() {
             </div>
             {statements.length > 0 && (
               <div className="space-y-1.5">
-                {statements.map((stmt, i) => {
+                {statements.map((stmt, si) => {
+                  if (stmt.cardSections && stmt.cardSections.length > 1) {
+                    // Multi-card PDF: show each card separately
+                    return stmt.cardSections.map((section, ci) => (
+                      <div key={`${si}-${ci}`} className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {BANK_NAMES[stmt.bank]} {section.cardNumber ? `(${section.cardNumber.slice(-4)})` : ''}
+                          {section.cardProductName && <span className="ml-1 text-primary/60">{section.cardProductName}</span>}
+                        </span>
+                        <span>{section.transactions.length} tx</span>
+                      </div>
+                    ))
+                  }
+                  // Single-card PDF
                   const stmtTxCount = mergedTx.filter((tx) => tx.sourceBank === (BANK_NAMES[stmt.bank] || stmt.bank)).length
                   return (
-                    <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div key={si} className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{BANK_NAMES[stmt.bank]} {stmt.cardNumber ? `(${stmt.cardNumber.slice(-4)})` : ''}</span>
                       <span>{stmtTxCount} tx · {stmt.statementDate || ''}</span>
                     </div>

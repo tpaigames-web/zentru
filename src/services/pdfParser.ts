@@ -15,6 +15,12 @@ export interface ParsedTransaction {
   reference?: string
 }
 
+export interface CardSection {
+  cardNumber?: string       // Last 4 digits (masked) of this card
+  cardProductName?: string  // e.g. "SUTERA VISA PLATINUM"
+  transactions: ParsedTransaction[]
+}
+
 export interface ParsedStatement {
   bank: string
   cardNumber?: string
@@ -25,6 +31,7 @@ export interface ParsedStatement {
   creditLimit?: number
   dueDate?: string
   transactions: ParsedTransaction[]
+  cardSections?: CardSection[]  // Multi-card: transactions grouped by card
   rawText: string
 }
 
@@ -119,25 +126,64 @@ export async function parseStatement(file: File): Promise<ParsedStatement> {
     return {
       bank: 'unknown',
       transactions: [],
-      rawText: '', // Do not retain raw text in result
+      rawText: '',
     }
   }
 
   const parser = BANK_PARSERS[bank] || parseDDMMMBank
+
+  // Step 2.5: Check for multiple cards in the PDF
+  const cardSplits = splitTextByCard(rawText)
+
+  if (cardSplits && cardSplits.length > 1) {
+    // Multi-card PDF: parse each section independently
+    const cardSections: CardSection[] = []
+    const allTransactions: ParsedTransaction[] = []
+
+    for (const section of cardSplits) {
+      const sectionResult = parser(section.text, bank)
+      const productName = sectionResult.cardProductName || detectCardProductName(section.text)
+
+      cardSections.push({
+        cardNumber: '****' + section.last4,
+        cardProductName: productName,
+        transactions: sectionResult.transactions,
+      })
+      allTransactions.push(...sectionResult.transactions)
+    }
+
+    // Parse the full text once more for statement-level info (dates, limits, balance)
+    const fullResult = parser(rawText, bank)
+    if (!fullResult.cardProductName) {
+      fullResult.cardProductName = detectCardProductName(rawText)
+    }
+
+    // Mask primary card number
+    if (fullResult.cardNumber && fullResult.cardNumber.length > 4) {
+      fullResult.cardNumber = '****' + fullResult.cardNumber.slice(-4)
+    }
+
+    return {
+      ...fullResult,
+      transactions: allTransactions,
+      cardSections,
+      rawText: '',
+    }
+  }
+
+  // Single-card PDF: existing behavior
   const result = parser(rawText, bank)
 
-  // Step 2.5: Detect card product name from text
   if (!result.cardProductName) {
     result.cardProductName = detectCardProductName(rawText)
   }
 
-  // Step 3: Mask sensitive data before returning
+  // Step 3: Mask sensitive data
   if (result.cardNumber && result.cardNumber.length > 4) {
-    // Only keep last 4 digits
     result.cardNumber = '****' + result.cardNumber.slice(-4)
   }
 
-  // Step 4: Clear raw text from result (only keep structured data)
+  // Step 4: Clear raw text
   result.rawText = ''
 
   return result
@@ -264,6 +310,68 @@ function extractCardNumber(text: string): string | undefined {
   const match = text.match(/\b(\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4})\b/)
     || text.match(/\b(\d{4}[\s\-*x]+\d{4})\b/)
   return match ? match[1].replace(/[\s\-]/g, '') : undefined
+}
+
+/**
+ * Find all card numbers in text and their positions.
+ * Returns array of { cardNumber, position } sorted by position.
+ * Common formats in Malaysian bank statements:
+ *   - "5239 4501 3049 5350" (full 16 digits with spaces)
+ *   - "XXXX-XXXX-XXXX-5350" (masked)
+ *   - "Card No: **** **** **** 5350"
+ *   - "4556 12XX XXXX 1234" (partially masked)
+ */
+function findAllCardNumbers(text: string): { last4: string; position: number }[] {
+  const results: { last4: string; position: number }[] = []
+  const seen = new Set<string>()
+
+  // Pattern 1: Full or partially masked 16-digit card numbers (4 groups of 4)
+  const fullPattern = /\b(\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+(\d{4}))\b/g
+  let m
+  while ((m = fullPattern.exec(text)) !== null) {
+    const last4 = m[2]
+    if (!seen.has(last4)) {
+      seen.add(last4)
+      results.push({ last4, position: m.index })
+    }
+  }
+
+  return results.sort((a, b) => a.position - b.position)
+}
+
+/**
+ * Split raw PDF text into sections by card number.
+ * Each section contains the text between one card number header and the next.
+ * Returns null if only 0 or 1 unique card numbers found (no splitting needed).
+ */
+function splitTextByCard(text: string): { last4: string; text: string }[] | null {
+  const cardPositions = findAllCardNumbers(text)
+
+  // Get unique card numbers
+  const uniqueCards = [...new Set(cardPositions.map((c) => c.last4))]
+  if (uniqueCards.length <= 1) return null // Single card or no card — no split needed
+
+  // For multi-card: find the FIRST occurrence of each unique card number
+  // This marks the start of each card's transaction section
+  const sectionStarts: { last4: string; position: number }[] = []
+  for (const last4 of uniqueCards) {
+    const first = cardPositions.find((c) => c.last4 === last4)
+    if (first) sectionStarts.push(first)
+  }
+  sectionStarts.sort((a, b) => a.position - b.position)
+
+  // Split text into sections
+  const sections: { last4: string; text: string }[] = []
+  for (let i = 0; i < sectionStarts.length; i++) {
+    const start = sectionStarts[i].position
+    const end = i + 1 < sectionStarts.length ? sectionStarts[i + 1].position : text.length
+    sections.push({
+      last4: sectionStarts[i].last4,
+      text: text.substring(start, end),
+    })
+  }
+
+  return sections
 }
 
 // ---- Bank-specific parsers ----
