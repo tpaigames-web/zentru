@@ -678,7 +678,146 @@ function parseDDMMMBank(text: string, bank: string): ParsedStatement {
 }
 
 function parseCIMB(text: string, bank: string): ParsedStatement {
+  // Auto-detect: savings account vs credit card
+  if (/Savings\s*Account|Akaun\s*Simpanan|BASIC\s*SA/i.test(text)) {
+    return parseSavingsAccount(text, bank)
+  }
   return parseDDMMMBank(text, bank)
+}
+
+/**
+ * Parse savings/current account statements.
+ * Supports:
+ *   - CIMB eStatement: DD/MM/YYYY DESCRIPTION WITHDRAWAL DEPOSITS BALANCE
+ *   - CIMBClicks export: DD MMM YYYY DESCRIPTION MYR AMOUNT MYR BALANCE
+ *   - Generic: any bank with DD/MM/YYYY + amount columns
+ */
+function parseSavingsAccount(text: string, bank: string): ParsedStatement {
+  let statementDate: string | undefined
+  const stmtMatch = text.match(/Statement\s*Date\s*[\/\s]*Tarikh\s*Penyata\s*[:\s]*(\d{2}\/\d{2}\/\d{4})/i)
+  if (stmtMatch) statementDate = parseDateStr(stmtMatch[1])
+
+  // Account number
+  let cardNumber: string | undefined
+  const acctMatch = text.match(/Account\s*No\s*[\/\s]*No\s*Akaun\s*[:\s]*([\d\-]+)/i)
+  if (acctMatch) cardNumber = acctMatch[1]
+
+  const transactions: ParsedTransaction[] = []
+  const lines = text.split('\n')
+
+  // Detect CIMBClicks format (DD MMM YYYY + MYR amounts)
+  const isCIMBClicks = /Money\s*In.*Money\s*Out|Account Details and Transaction/i.test(text)
+
+  if (isCIMBClicks) {
+    // CIMBClicks: "16 Apr 2026   T71382   MYR   350.   00   MYR   2,583. 05"
+    // Amounts are split across spacing: "350.   00" = 350.00
+    // Strategy: find date lines, extract amounts with MYR prefix
+    const dateLinePattern = /^(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const dateMatch = line.match(dateLinePattern)
+      if (!dateMatch) continue
+
+      const dateStr = dateMatch[1]
+      // Find all MYR amounts on this line
+      const myrAmounts: number[] = []
+      const amtPattern = /MYR\s+(\d{1,3}(?:,\d{3})*\.\s*\d{2})/g
+      let am
+      while ((am = amtPattern.exec(line)) !== null) {
+        myrAmounts.push(parseFloat(am[1].replace(/[\s,]/g, '')))
+      }
+
+      if (myrAmounts.length < 2) continue // Need at least amount + balance
+
+      // Get description from lines above (CIMB puts description before date)
+      let description = ''
+      for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+        const prevLine = lines[j].trim()
+        if (!prevLine || dateLinePattern.test(prevLine) || /^MYR/.test(prevLine)) break
+        if (/^Account|^Protected|^Date|^Transaction|^BASIC/.test(prevLine)) break
+        description = prevLine + (description ? ' ' : '') + description
+      }
+      if (!description || description.length < 3) continue
+
+      const txAmount = myrAmounts[0]
+      if (txAmount <= 0) continue
+
+      // Determine if Money In or Money Out based on column position
+      // Money Out appears after Money In column
+      const moneyInMatch = line.match(/MYR\s+\d/)
+      const isIncome = moneyInMatch && line.indexOf('MYR') < line.lastIndexOf('MYR') - 20
+        ? line.indexOf(moneyInMatch[0]) < line.length / 2
+        : false
+
+      // Clean description
+      description = description
+        .replace(/^(POS DEBIT|I-PAYMENT|DUITNOW|MYDEBIT PURCHASE|IBG CREDIT|I-FUNDS TR)/i, '')
+        .replace(/\d{8,}/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+      if (description.length < 3) continue
+
+      transactions.push({
+        date: parseDateStr(dateStr),
+        description,
+        amount: txAmount,
+        type: isIncome ? 'income' : 'expense',
+      })
+    }
+  } else {
+    // CIMB eStatement: DD/MM/YYYY DESCRIPTION AMOUNT BALANCE
+    // Transactions start with date, followed by description + amount on same or next lines
+    // Withdrawal column = expense, Deposits column = income
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+
+      // Match: DD/MM/YYYY DESCRIPTION AMOUNT BALANCE
+      const m = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s+(\d{1,3}(?:,\d{3})*\.\d{2})$/)
+      if (!m) continue
+
+      const dateStr = m[1]
+      let description = m[2].trim()
+      const amount = parseFloat(m[3].replace(/,/g, ''))
+      // Balance is m[4] — we don't need it
+
+      if (amount <= 0) continue
+      if (/OPENING\s*BALANCE|CLOSING\s*BALANCE|TOTAL|BALANCE\s*BROUGHT/i.test(description)) continue
+
+      // Check if this is a deposit (income) or withdrawal (expense)
+      // In CIMB eStatement, deposits appear in a different column position
+      // If the amount appears more to the right, it's a deposit
+      // Simple heuristic: check if amount is in withdrawal or deposit column
+      const amountPos = line.indexOf(m[3])
+      const lineLen = line.length
+      const isDeposit = amountPos > lineLen * 0.45 && amountPos < lineLen * 0.7
+
+      // Clean description: remove reference numbers, multi-line leftovers
+      description = description
+        .replace(/[A-Z]\d{4,}/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+
+      // Skip non-transaction lines
+      if (/^Page\s|^Statement|^Date\s|^Tarikh/i.test(description)) continue
+      if (description.length < 3) continue
+
+      transactions.push({
+        date: parseDateStr(dateStr),
+        description,
+        amount,
+        type: isDeposit ? 'income' : 'expense',
+      })
+    }
+  }
+
+  return {
+    bank,
+    cardNumber,
+    cardProductName: 'Savings Account',
+    statementDate,
+    transactions,
+    rawText: text,
+  }
 }
 
 function parsePublicBank(text: string, bank: string): ParsedStatement {
