@@ -17,12 +17,14 @@ export function LockScreen() {
     setPin(next)
     setError(false)
 
-    if (next.length === 4 || next.length === 6) {
+    // Try to verify at every length >= 4 (PIN can be 4, 5, or 6 digits)
+    if (next.length >= 4) {
       setTimeout(async () => {
         const valid = await verifyPin(next)
         if (valid) {
           unlock()
-        } else if (next.length === 6) {
+        } else if (next.length >= 6) {
+          // Max length reached and still wrong — show error and reset
           setError(true)
           setShaking(true)
           setTimeout(() => { setShaking(false); setPin('') }, 500)
