@@ -143,8 +143,8 @@ async function extractPdfItems(file: File, password?: string): Promise<{ str: st
  * TNG uses a columnar table: each X position = one transaction.
  * Rows (top to bottom): balance_after, amount, balance_before, details, description, ref, type, status, date
  */
-async function parseTNGStatement(file: File): Promise<ParsedStatement> {
-  const allItems = await extractPdfItems(file)
+async function parseTNGStatement(file: File, password?: string): Promise<ParsedStatement> {
+  const allItems = await extractPdfItems(file, password)
   const transactions: ParsedTransaction[] = []
 
   // Process page by page
@@ -264,7 +264,7 @@ export async function parseStatement(file: File, password?: string): Promise<Par
 
   // Step 1.5: Detect TNG eWallet (uses special columnar parser)
   if (/TNG WALLET TRANSACTION/i.test(rawText)) {
-    return parseTNGStatement(file)
+    return parseTNGStatement(file, password)
   }
 
   // Step 2: Detect bank and parse transactions
