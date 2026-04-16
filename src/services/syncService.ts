@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { db } from '@/data/dexie/DexieDatabase'
 import { useCardStore } from '@/stores/useCardStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
@@ -9,23 +10,34 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 type DataType = 'cards' | 'transactions' | 'categories' | 'budgets' | 'accounts' | 'settings'
 
 /**
- * Upload all local data to Supabase (encrypted as JSON blobs).
- * Simple full-replace strategy — last write wins.
+ * Upload all local data to Supabase (as JSON blobs).
+ * Reads directly from Dexie (IndexedDB) to ensure we get the latest data.
  */
 export async function uploadAllData(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    // Read directly from Dexie to ensure complete data
+    const [cards, transactions, categories, budgets, accounts] = await Promise.all([
+      db.cards.toArray(),
+      db.transactions.toArray(),
+      db.categories.toArray(),
+      db.budgets.toArray(),
+      db.accounts.toArray(),
+    ])
+
+    const settings = {
+      theme: useSettingsStore.getState().theme,
+      language: useSettingsStore.getState().language,
+      currency: useSettingsStore.getState().currency,
+      dailyReminderHour: useSettingsStore.getState().dailyReminderHour,
+    }
+
     const dataMap: Record<DataType, unknown> = {
-      cards: useCardStore.getState().cards,
-      transactions: useTransactionStore.getState().transactions,
-      categories: useCategoryStore.getState().categories,
-      budgets: useBudgetStore.getState().budgets,
-      accounts: useAccountStore.getState().accounts,
-      settings: {
-        theme: useSettingsStore.getState().theme,
-        language: useSettingsStore.getState().language,
-        currency: useSettingsStore.getState().currency,
-        dailyReminderHour: useSettingsStore.getState().dailyReminderHour,
-      },
+      cards,
+      transactions,
+      categories,
+      budgets,
+      accounts,
+      settings,
     }
 
     for (const [dataType, data] of Object.entries(dataMap)) {
@@ -37,7 +49,7 @@ export async function uploadAllData(userId: string): Promise<{ success: boolean;
           {
             user_id: userId,
             data_type: dataType,
-            encrypted_data: jsonStr, // For now plain JSON; E2E encryption can be layered on top
+            encrypted_data: jsonStr,
             version: 1,
             updated_at: new Date().toISOString(),
           },
@@ -57,7 +69,7 @@ export async function uploadAllData(userId: string): Promise<{ success: boolean;
 }
 
 /**
- * Download all data from Supabase and merge into local stores.
+ * Download all data from Supabase and write to Dexie + Zustand stores.
  * Full-replace strategy — remote data overwrites local.
  */
 export async function downloadAllData(userId: string): Promise<{ success: boolean; error?: string }> {
@@ -68,7 +80,7 @@ export async function downloadAllData(userId: string): Promise<{ success: boolea
       .eq('user_id', userId)
 
     if (error) return { success: false, error: error.message }
-    if (!data || data.length === 0) return { success: true } // No remote data yet
+    if (!data || data.length === 0) return { success: false, error: '云端没有数据 / No remote data found' }
 
     for (const row of data) {
       const parsed = JSON.parse(row.encrypted_data)
@@ -76,18 +88,29 @@ export async function downloadAllData(userId: string): Promise<{ success: boolea
 
       switch (type) {
         case 'cards':
+          // Write to Dexie first, then update Zustand
+          await db.cards.clear()
+          if (parsed.length > 0) await db.cards.bulkAdd(parsed)
           useCardStore.setState({ cards: parsed })
           break
         case 'transactions':
+          await db.transactions.clear()
+          if (parsed.length > 0) await db.transactions.bulkAdd(parsed)
           useTransactionStore.setState({ transactions: parsed })
           break
         case 'categories':
+          await db.categories.clear()
+          if (parsed.length > 0) await db.categories.bulkAdd(parsed)
           useCategoryStore.setState({ categories: parsed })
           break
         case 'budgets':
+          await db.budgets.clear()
+          if (parsed.length > 0) await db.budgets.bulkAdd(parsed)
           useBudgetStore.setState({ budgets: parsed })
           break
         case 'accounts':
+          await db.accounts.clear()
+          if (parsed.length > 0) await db.accounts.bulkAdd(parsed)
           useAccountStore.setState({ accounts: parsed })
           break
         case 'settings':
