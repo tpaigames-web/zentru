@@ -17,9 +17,10 @@ interface UserState {
   isPremium: boolean
 
   initialize: () => Promise<void>
-  signUp: (email: string, password: string) => Promise<{ error?: string }>
+  signUp: (email: string, password: string) => Promise<{ error?: string; alreadyExists?: boolean }>
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signInWithGoogle: () => Promise<{ error?: string }>
+  resetPassword: (email: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -61,12 +62,15 @@ export const useUserStore = create<UserState>()((set, get) => ({
   signUp: async (email, password) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) {
-      // "Database error saving new user" means the trigger failed
-      // but the user might still have been created in auth.users
       if (error.message.includes('Database error')) {
         return { error: '数据库错误，请联系管理员或稍后再试 / Database error, please try again later' }
       }
       return { error: error.message }
+    }
+    // Supabase returns a user with identities=[] if the email already exists
+    // (when "Confirm email" is enabled and user hasn't confirmed yet, or already confirmed)
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      return { error: 'already_registered', alreadyExists: true }
     }
     // If signup succeeded but profile wasn't created by trigger, create it manually
     if (data.user) {
@@ -94,6 +98,14 @@ export const useUserStore = create<UserState>()((set, get) => ({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
+    })
+    if (error) return { error: error.message }
+    return {}
+  },
+
+  resetPassword: async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}`,
     })
     if (error) return { error: error.message }
     return {}
