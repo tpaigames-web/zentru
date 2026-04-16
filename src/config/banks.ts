@@ -14,7 +14,7 @@ export interface BankInfo {
 export const ALL_BANKS: BankInfo[] = [
   // Major local banks
   { id: 'maybank', name: 'Maybank', color: '#FFC72C', pdfKeywords: /MAYBANK|MALAYAN\s*BANKING/i, supportLevel: 'verified' },
-  { id: 'cimb', name: 'CIMB Bank', color: '#EC1C24', pdfKeywords: /CIMB/i, supportLevel: 'experimental' },
+  { id: 'cimb', name: 'CIMB Bank', color: '#EC1C24', pdfKeywords: /CIMB|CIMB\s*Islamic|BASIC\s*SA-i/i, supportLevel: 'experimental' },
   { id: 'publicbank', name: 'Public Bank', color: '#D4213D', pdfKeywords: /PUBLIC\s*BANK|PB\s*CARD/i, supportLevel: 'experimental' },
   { id: 'rhb', name: 'RHB Bank', color: '#003DA5', pdfKeywords: /RHB\s*BANK|RHB\s*CARD/i, supportLevel: 'partial' },
   { id: 'hongleong', name: 'Hong Leong Bank', color: '#00539B', pdfKeywords: /HONG\s*LEONG|HLB/i, supportLevel: 'partial' },

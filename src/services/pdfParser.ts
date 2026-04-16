@@ -876,60 +876,88 @@ function parseSavingsAccount(text: string, bank: string): ParsedStatement {
   const isCIMBClicks = /Money\s*In.*Money\s*Out|Account Details and Transaction/i.test(text)
 
   if (isCIMBClicks) {
-    // CIMBClicks: "16 Apr 2026   T71382   MYR   350.   00   MYR   2,583. 05"
-    // Amounts are split across spacing: "350.   00" = 350.00
-    // Strategy: find date lines, extract amounts with MYR prefix
+    // CIMBClicks format:
+    //   Line -3: POS DEBIT / I-PAYMENT / DUITNOW (transaction type)
+    //   Line -2: FPXPAY MCDONALD'S / 20260413TNG-EWALLET... (details)
+    //   Line  0: 14 Apr 2026 [ref] MYR 26. 15 MYR 2,533. 05 (date + amounts)
+    //   Line +1: reference numbers (ignore)
+    //
+    // Strategy: find date lines, extract amounts, use balance comparison,
+    // look upward for the first meaningful description line.
+
     const dateLinePattern = /^(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/
+    interface ClicksTx { dateStr: string; amount: number; balance: number; description: string }
+    const rawTxs: ClicksTx[] = []
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const dateMatch = line.match(dateLinePattern)
       if (!dateMatch) continue
 
       const dateStr = dateMatch[1]
-      // Find all MYR amounts on this line
+      // Extract all MYR amounts: "MYR   350.   00" → 350.00
       const myrAmounts: number[] = []
       const amtPattern = /MYR\s+(\d{1,3}(?:,\d{3})*\.\s*\d{2})/g
       let am
       while ((am = amtPattern.exec(line)) !== null) {
         myrAmounts.push(parseFloat(am[1].replace(/[\s,]/g, '')))
       }
-
-      if (myrAmounts.length < 2) continue // Need at least amount + balance
-
-      // Get description from lines above (CIMB puts description before date)
-      let description = ''
-      for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
-        const prevLine = lines[j].trim()
-        if (!prevLine || dateLinePattern.test(prevLine) || /^MYR/.test(prevLine)) break
-        if (/^Account|^Protected|^Date|^Transaction|^BASIC/.test(prevLine)) break
-        description = prevLine + (description ? ' ' : '') + description
-      }
-      if (!description || description.length < 3) continue
+      if (myrAmounts.length < 2) continue
 
       const txAmount = myrAmounts[0]
+      const balance = myrAmounts[myrAmounts.length - 1]
       if (txAmount <= 0) continue
 
-      // Determine if Money In or Money Out based on column position
-      // Money Out appears after Money In column
-      const moneyInMatch = line.match(/MYR\s+\d/)
-      const isIncome = moneyInMatch && line.indexOf('MYR') < line.lastIndexOf('MYR') - 20
-        ? line.indexOf(moneyInMatch[0]) < line.length / 2
-        : false
+      // Look upward for description — find transaction type + merchant
+      // Skip: reference numbers (8+ digits), empty lines, date lines, headers
+      let txType = ''
+      let merchant = ''
+      for (let j = i - 1; j >= Math.max(0, i - 6); j--) {
+        const prev = lines[j].trim()
+        if (!prev) continue
+        if (dateLinePattern.test(prev)) break
+        if (/^Account|^Protected|^Date|^Transaction|^BASIC|^Current|^Available/i.test(prev)) break
+        // Skip pure reference number lines
+        if (/^\d{6,}$/.test(prev) || /^[A-Z0-9]{15,}$/.test(prev)) continue
+        // Skip date-reference lines like "13/04/2026 6300"
+        if (/^\d{2}\/\d{2}\/\d{4}\s+\d+$/.test(prev)) continue
 
-      // Clean description
-      description = description
-        .replace(/^(POS DEBIT|I-PAYMENT|DUITNOW|MYDEBIT PURCHASE|IBG CREDIT|I-FUNDS TR)/i, '')
-        .replace(/\d{8,}/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-      if (description.length < 3) continue
+        // Transaction type keywords
+        if (/^(POS DEBIT|I-PAYMENT|DUITNOW|MYDEBIT PURCHASE|IBG CREDIT|I-FUNDS TR|GIRO CREDIT|SALARY|PAYROLL)/i.test(prev)) {
+          txType = prev
+        } else if (!merchant && prev.length >= 3 && !/^DuitNow QR$|^CASAOffUs$|^QR Payment$/i.test(prev)) {
+          // First meaningful non-type line = merchant/description
+          merchant = prev
+        }
 
+        if (txType && merchant) break
+      }
+
+      // Build description
+      let description = ''
+      if (merchant) {
+        // Clean merchant: remove "FPXPAY " prefix, long codes
+        description = merchant.replace(/^FPXPAY\s+/i, '').replace(/\d{10,}/g, '').replace(/\s{2,}/g, ' ').trim()
+      }
+      if (!description && txType) description = txType
+      if (!description || description.length < 3) description = 'CIMBClicks Transaction'
+
+      rawTxs.push({ dateStr, amount: txAmount, balance, description })
+    }
+
+    // Use balance comparison to determine income vs expense
+    let prevBalance = rawTxs.length > 0 ? rawTxs[0].balance + rawTxs[0].amount : 0 // estimate
+    // CIMBClicks is in reverse chronological order (newest first)
+    // Balance goes: current → older, so if balance decreases going backward = that was income
+    for (const tx of rawTxs) {
+      const isIncome = tx.balance > prevBalance
       transactions.push({
-        date: parseDateStr(dateStr),
-        description,
-        amount: txAmount,
+        date: parseDateStr(tx.dateStr),
+        description: tx.description,
+        amount: tx.amount,
         type: isIncome ? 'income' : 'expense',
       })
+      prevBalance = tx.balance
     }
   } else {
     // CIMB eStatement: DD/MM/YYYY DESCRIPTION AMOUNT BALANCE
