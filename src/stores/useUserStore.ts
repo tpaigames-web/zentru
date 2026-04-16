@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
 interface UserProfile {
@@ -31,10 +31,19 @@ export const useUserStore = create<UserState>()((set, get) => ({
   isPremium: false,
 
   initialize: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      set({ user: session.user })
-      await get().refreshProfile()
+    if (!isSupabaseConfigured) {
+      set({ loading: false })
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        set({ user: session.user })
+        await get().refreshProfile()
+      }
+    } catch (e) {
+      console.warn('Auth session check failed:', e)
     }
     set({ loading: false })
 
