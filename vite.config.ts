@@ -11,6 +11,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Force new SW to take over immediately (skip waiting)
+      selfDestroying: false,
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'Zentru',
@@ -44,6 +46,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Force new SW to activate immediately, don't wait for tabs to close
+        skipWaiting: true,
+        clientsClaim: true,
+        // Clean up old caches from previous versions
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
