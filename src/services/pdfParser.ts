@@ -230,9 +230,12 @@ function detectCardProductName(text: string): string | undefined {
     /QUANTUM\s+(?:VISA|MASTERCARD)/i,
     /PETRON\s+VISA/i,
     /ONE\s+VISA\s+(?:CARD|CLASSIC|PLATINUM)/i,
+    /EVOL\s+VISA\s+CARD/i,
     /EVOL\s+(?:VISA|CARD)/i,
     /YOLO\s+VISA/i,
     /ZENITH\s+MASTER\w*/i,
+    /VISA\s+INFINITE\s+CARD/i,
+    /WORLD\s+MASTER\w*\s*CARD/i,
     /SIMPLY\s+(?:VISA|CASH)/i,
     /CASH\s+(?:REBATE|BACK)\s+(?:VISA|MASTER\w*)\s*(?:PLATINUM|GOLD|CLASSIC)?/i,
     /WORLD\s+MASTER\w*/i,
@@ -369,6 +372,10 @@ function parseDateStr(dateStr: string, year?: number, stmtMonth?: number): strin
 }
 
 function extractCardNumber(text: string): string | undefined {
+  // UOB format: **4599-1441-0610-3232**
+  const uobMatch = text.match(/\*\*(\d{4}[\-\s]\d{4}[\-\s]\d{4}[\-\s]\d{4})\*\*/)
+  if (uobMatch) return uobMatch[1].replace(/[\s\-]/g, '')
+
   const match = text.match(/\b(\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4}[\s\-*]+\d{4})\b/)
     || text.match(/\b(\d{4}[\s\-*x]+\d{4})\b/)
   return match ? match[1].replace(/[\s\-]/g, '') : undefined
@@ -387,9 +394,19 @@ function findAllCardNumbers(text: string): { last4: string; position: number }[]
   const results: { last4: string; position: number }[] = []
   const seen = new Set<string>()
 
-  // Pattern 1: Full or partially masked 16-digit card numbers (4 groups of 4)
-  const fullPattern = /\b(\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+(\d{4}))\b/g
+  // Pattern 1: UOB format with ** wrapper: **4599-1441-0610-3232**
+  const uobPattern = /\*\*(\d{4}[\-\s]\d{4}[\-\s]\d{4}[\-\s](\d{4}))\*\*/g
   let m
+  while ((m = uobPattern.exec(text)) !== null) {
+    const last4 = m[2]
+    if (!seen.has(last4)) {
+      seen.add(last4)
+      results.push({ last4, position: m.index })
+    }
+  }
+
+  // Pattern 2: Standard full/partially masked 16-digit (4 groups of 4)
+  const fullPattern = /\b(\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+\d{4}[\s\-*xX]+(\d{4}))\b/g
   while ((m = fullPattern.exec(text)) !== null) {
     const last4 = m[2]
     if (!seen.has(last4)) {
