@@ -49,8 +49,12 @@ const CATEGORY_RULES: { pattern: RegExp; nameKey: string }[] = [
   // Bill payments / installments
   { pattern: /\b(ezypay|instalment|installment|ipl\b|bnpl|hire\s*purchase)\b/i, nameKey: 'category.shopping' },
 
-  // E-wallet top-up (classify as transfer, but default to shopping if no transfer category)
+  // E-wallet top-up / transfers
   { pattern: /\b(grabpay|grab\s*pay|tng.*topup|boost.*topup|shopeepay|mae.*topup)\b/i, nameKey: 'category.shopping' },
+  { pattern: /\bGO\+\s*(Cash Out|Reload)/i, nameKey: 'category.other_expense' },
+  { pattern: /\b(eWallet Cash Out|DuitNow Transfer|Transfer to Wallet)/i, nameKey: 'category.other_expense' },
+  { pattern: /\bDuitNow\s*(QR|Payment)/i, nameKey: 'category.shopping' },
+  { pattern: /\bQuick Reload|^Reload$/i, nameKey: 'category.other_income' },
 
   // Income categories
   { pattern: /\b(salary|gaji|wages|payroll)\b/i, nameKey: 'category.salary' },

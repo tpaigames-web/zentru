@@ -224,22 +224,41 @@ async function parseTNGStatement(file: File, password?: string): Promise<ParsedS
       }
       if (amount <= 0) continue
 
-      // Get description
-      let description = findAt(descRow || [], txX) || typeStr
+      // Get description (merchant/person name)
+      const rawDesc = findAt(descRow || [], txX) || ''
 
       // Determine type from transaction type keywords
       const isExpense = /Cash Out|TRANSFERTO|Transfer to|Payment/i.test(typeStr)
       const isIncome = /Receive|RECEIVEFROM|Reload/i.test(typeStr)
       if (!isExpense && !isIncome) continue
 
-      // Clean description
-      description = description
-        .replace(/Via eWallet to GO\+/i, 'GO+ Cash Out')
-        .replace(/Quick Reload Payment \(via GO\+/i, 'GO+ Reload')
-        .replace(/Balance\)/i, '')
-        .replace(/\s{2,}/g, ' ')
+      // Build meaningful description: combine type context + name
+      let description = rawDesc
+      const cleanType = typeStr
+        .replace(/20\d{12,}/g, '') // Remove embedded timestamps
+        .replace(/Wallet$/, '')
         .trim()
-      if (description.length < 2) description = typeStr
+
+      if (/Via eWallet to GO\+/i.test(rawDesc)) {
+        description = 'GO+ Cash Out'
+      } else if (/Quick Reload Payment/i.test(rawDesc)) {
+        description = 'TNG Reload (GO+)'
+      } else if (/DUITNOW_TRANS/i.test(cleanType)) {
+        description = rawDesc ? `DuitNow Transfer - ${rawDesc}` : 'DuitNow Transfer'
+      } else if (/DUITNOW_RECEI/i.test(cleanType)) {
+        description = rawDesc ? `DuitNow Receive - ${rawDesc}` : 'DuitNow Receive'
+      } else if (/eWallet Cash Out/i.test(cleanType)) {
+        description = rawDesc ? `TNG Payment - ${rawDesc}` : 'TNG eWallet Cash Out'
+      } else if (/Receive from/i.test(cleanType)) {
+        description = rawDesc ? `TNG Receive - ${rawDesc}` : 'TNG Receive'
+      } else if (/^Reload$/i.test(cleanType)) {
+        description = 'TNG Reload'
+      } else if (/Transfer to/i.test(cleanType)) {
+        description = rawDesc ? `TNG Transfer - ${rawDesc}` : 'TNG Transfer'
+      }
+
+      description = description.replace(/Balance\)/i, '').replace(/\s{2,}/g, ' ').trim()
+      if (description.length < 2) description = cleanType || 'TNG Transaction'
 
       transactions.push({
         date: parseDateStr(date),
