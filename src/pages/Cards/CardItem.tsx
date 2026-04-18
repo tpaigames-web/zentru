@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Banknote, History, Pencil, Trash2 } from 'lucide-react'
+import { Banknote, History, Pencil, Trash2, Sparkles } from 'lucide-react'
 import type { CreditCard } from '@/models/card'
 import { formatAmount } from '@/lib/currency'
 import { getDaysUntilDue } from '@/lib/date'
@@ -56,14 +56,16 @@ function NetworkBadge({ network }: { network: string }) {
 }
 
 export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPayment, onPaymentHistory }: CardItemProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const daysUntilDue = getDaysUntilDue(card.dueDay)
   const bankColors = getBankColors(card.bank)
   const network = detectNetworkFromName(card.name)
+  const isZh = i18n.language.startsWith('zh')
 
   const cashbackPct = cashbackInfo?.totalCap
     ? Math.min((cashbackInfo.earned / cashbackInfo.totalCap) * 100, 100)
     : 0
+  const isMaxed = cashbackInfo?.totalCap ? cashbackInfo.earned >= cashbackInfo.totalCap : false
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -96,10 +98,22 @@ export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPaym
         {cashbackInfo && cashbackInfo.rulesCount > 0 ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className={cn('text-xl font-bold', cashbackInfo.capReached ? 'text-warning' : 'text-success')}>
-                {formatAmount(cashbackInfo.earned, card.currency)}
+              <div className="flex items-center gap-1.5">
+                <p className={cn('text-xl font-bold', isMaxed ? 'text-warning' : cashbackInfo.capReached ? 'text-warning' : 'text-success')}>
+                  {formatAmount(cashbackInfo.earned, card.currency)}
+                </p>
+                {isMaxed && (
+                  <span className="flex items-center gap-0.5 rounded-full bg-warning/20 px-1.5 py-0.5 text-[9px] font-bold text-warning">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {isZh ? '已赚满' : 'MAX'}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {cashbackPct > 0 && cashbackInfo.totalCap
+                  ? `${cashbackPct.toFixed(0)}% ${isZh ? '已赚' : 'earned'}`
+                  : 'Est. Cashback'}
               </p>
-              <p className="text-[10px] text-muted-foreground">Est. Cashback</p>
             </div>
             {cashbackInfo.totalCap && (
               <div className="text-right">

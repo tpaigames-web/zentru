@@ -45,6 +45,7 @@ const LockScreen = safeLazy(() => import('@/components/LockScreen').then(m => ({
 const DashboardPage = safeLazy(() => import('@/pages/Dashboard'))
 const CardsPage = safeLazy(() => import('@/pages/Cards'))
 const CardDetailPage = safeLazy(() => import('@/pages/Cards/CardDetail'))
+const PaymentCalendarPage = safeLazy(() => import('@/pages/Cards/PaymentCalendar'))
 const TransactionsPage = safeLazy(() => import('@/pages/Transactions'))
 const NewTransactionPage = safeLazy(() => import('@/pages/Transactions/NewTransaction'))
 const QuickAddPage = safeLazy(() => import('@/pages/Transactions/QuickAdd'))
@@ -278,6 +279,7 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="cards" element={<CardsPage />} />
               <Route path="cards/:id" element={<CardDetailPage />} />
+              <Route path="cards-calendar" element={<PaymentCalendarPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="transactions/new" element={<QuickAddPage />} />
               <Route path="transactions/new/detailed" element={<NewTransactionPage />} />

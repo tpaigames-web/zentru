@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Plus, CreditCard, ScanLine } from 'lucide-react'
+import { Plus, CreditCard, ScanLine, Calendar } from 'lucide-react'
 import { useCardStore } from '@/stores/useCardStore'
 import { usePaymentStore } from '@/stores/usePaymentStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
@@ -97,6 +97,13 @@ export default function CardsPage() {
         <h2 className="text-xl md:text-2xl font-bold">{t('cards.title')}</h2>
         {viewMode === 'cards' && (
           <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/cards-calendar')}
+              title="Payment Calendar"
+              className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-accent"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+            </button>
             <button onClick={() => setShowScanner(true)} className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-accent">
               <ScanLine className="h-3.5 w-3.5" />
               {t('cards.scan.title')}
