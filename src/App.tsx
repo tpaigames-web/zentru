@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route } from 'react-router'
 import { DataProvider } from '@/data/DataProvider'
 import { seedDefaultCategories } from '@/data/seed'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserStore } from '@/stores/useUserStore'
+import { useModulesStore } from '@/stores/useModulesStore'
 
 // Lazy load all pages — each becomes a separate chunk
 const LoginPage = lazy(() => import('@/pages/Auth/LoginPage'))
@@ -65,6 +67,7 @@ export default function App() {
     Promise.all([
       seedDefaultCategories().catch((e) => console.warn('Seed failed:', e)),
       initialize().catch((e) => console.warn('Auth init failed:', e)),
+      useModulesStore.getState().loadModules().catch((e) => console.warn('Modules init failed:', e)),
     ]).then(() => {
       const onboarded = localStorage.getItem(ONBOARDING_KEY)
       if (!onboarded) setShowOnboarding(true)
@@ -146,11 +149,12 @@ export default function App() {
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="transactions/new" element={<NewTransactionPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="predictions" element={<PredictionsPage />} />
-              <Route path="budget" element={<BudgetPage />} />
-              <Route path="cashback" element={<CashbackPage />} />
-              <Route path="smart" element={<SmartCardPage />} />
-              <Route path="recurring" element={<RecurringPage />} />
+              {/* High-risk modules: guarded */}
+              <Route path="predictions" element={<ModuleGuard module="predictions"><PredictionsPage /></ModuleGuard>} />
+              <Route path="budget" element={<ModuleGuard module="budget"><BudgetPage /></ModuleGuard>} />
+              <Route path="smart" element={<ModuleGuard module="smart_card"><SmartCardPage /></ModuleGuard>} />
+              <Route path="cashback" element={<ModuleGuard module="cashback_tracking"><CashbackPage /></ModuleGuard>} />
+              <Route path="recurring" element={<ModuleGuard module="recurring"><RecurringPage /></ModuleGuard>} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="payment-methods" element={<PaymentMethodsPage />} />
               <Route path="import" element={<ImportPage />} />
