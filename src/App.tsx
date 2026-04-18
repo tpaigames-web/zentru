@@ -20,6 +20,7 @@ const CardsPage = lazy(() => import('@/pages/Cards'))
 const CardDetailPage = lazy(() => import('@/pages/Cards/CardDetail'))
 const TransactionsPage = lazy(() => import('@/pages/Transactions'))
 const NewTransactionPage = lazy(() => import('@/pages/Transactions/NewTransaction'))
+const QuickAddPage = lazy(() => import('@/pages/Transactions/QuickAdd'))
 const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
 const PredictionsPage = lazy(() => import('@/pages/Predictions'))
 const BudgetPage = lazy(() => import('@/pages/Budget'))
@@ -207,7 +208,8 @@ export default function App() {
               <Route path="cards" element={<CardsPage />} />
               <Route path="cards/:id" element={<CardDetailPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
-              <Route path="transactions/new" element={<NewTransactionPage />} />
+              <Route path="transactions/new" element={<QuickAddPage />} />
+              <Route path="transactions/new/detailed" element={<NewTransactionPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               {/* High-risk modules: guarded */}
               <Route path="predictions" element={<ModuleGuard module="predictions"><PredictionsPage /></ModuleGuard>} />
