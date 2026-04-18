@@ -5,7 +5,7 @@ import {
   Moon, Sun, Globe, ChevronRight, DollarSign, Bell, Lock, LogOut,
   Cloud, CloudUpload, CloudDownload, Loader2, User, Crown, Info,
   FileSpreadsheet, Download, Upload, Database, FolderSync,
-  Tags, Wallet, CalendarClock, Layers,
+  Tags, Wallet, CalendarClock, Layers, Gift,
 } from 'lucide-react'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
@@ -88,6 +88,27 @@ export default function SettingsPage() {
           </button>
         )}
       </div>
+
+      {/* ============ SECTION: Contributions (only if logged in) ============ */}
+      {user && (
+        <button
+          onClick={() => navigate('/settings/contributions')}
+          className="w-full rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 p-4 text-left hover:from-primary/10 hover:to-primary/15 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+              <Gift className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">{isZh ? '🎁 贡献样本延长试用' : '🎁 Earn Trial Extension'}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isZh ? '提交账单样本 → +7 天 / 新银行 +30 天' : 'Submit samples → +7 days / +30 for new banks'}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+        </button>
+      )}
 
       {/* ============ SECTION: Cloud Sync ============ */}
       {user && (

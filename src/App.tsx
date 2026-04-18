@@ -31,6 +31,7 @@ const SettingsPage = lazy(() => import('@/pages/Settings'))
 const AboutPage = lazy(() => import('@/pages/Settings/About'))
 const PrivacyPolicyPage = lazy(() => import('@/pages/Settings/PrivacyPolicy'))
 const UICustomizePage = lazy(() => import('@/pages/Settings/UICustomize'))
+const ContributionsPage = lazy(() => import('@/pages/Settings/Contributions'))
 
 // Admin pages (lazy loaded)
 const AdminLayout = lazy(() => import('@/pages/Admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
@@ -196,6 +197,7 @@ export default function App() {
               <Route path="import" element={<ImportPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/ui-customize" element={<UICustomizePage />} />
+              <Route path="settings/contributions" element={<ContributionsPage />} />
               <Route path="about" element={<AboutPage />} />
               <Route path="privacy" element={<PrivacyPolicyPage />} />
               <Route path="*" element={<NotFoundPage />} />

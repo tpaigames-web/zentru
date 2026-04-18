@@ -398,16 +398,41 @@ export default function ImportPage() {
 
     // Submit anonymized samples if user opted in
     if (shareSample && isSupabaseConfigured && sampleData.length > 0) {
+      const { useUserStore } = await import('@/stores/useUserStore')
+      const userId = useUserStore.getState().user?.id
+      let totalDaysEarned = 0
+
       try {
         for (const sample of sampleData) {
           const sanitized = sanitizeForSample(sample.rawText)
-          await supabase.from('statement_samples').insert({
+
+          // Compute content hash for dedup (first 500 chars are enough)
+          const encoder = new TextEncoder()
+          const hashBuffer = await crypto.subtle.digest(
+            'SHA-256',
+            encoder.encode(sanitized.substring(0, 500))
+          )
+          const hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0')).join('').substring(0, 16)
+
+          const { data: inserted } = await supabase.from('statement_samples').insert({
+            user_id: userId || null,
             bank: sample.bank,
             card_product: sample.cardProduct || null,
             transaction_count: sample.txCount,
             parse_success: sample.txCount > 0,
             sample_text: sanitized,
-          })
+            content_hash: hashHex,
+            reward_days: sample.txCount > 0 ? 7 : 30, // Parse failure = likely new bank = +30 days
+          }).select('reward_days').single()
+
+          if (inserted) totalDaysEarned += inserted.reward_days || 0
+        }
+
+        // Show reward message if user earned something
+        if (userId && totalDaysEarned > 0) {
+          // Refresh profile to pull new trial_ends_at
+          await useUserStore.getState().refreshProfile()
         }
       } catch (e) {
         console.warn('Sample submission failed (non-critical):', e)
@@ -693,10 +718,14 @@ export default function ImportPage() {
               />
               <div className="flex-1">
                 <p className="text-xs font-medium">
-                  {t('import.shareSampleTitle', { defaultValue: '帮助改善解析准确率（可选）' })}
+                  {i18n.language.startsWith('zh')
+                    ? '🎁 帮助改善解析 · 延长免费试用（可选）'
+                    : '🎁 Help improve parsing · Extend trial (optional)'}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {t('import.shareSampleDesc', { defaultValue: '匿名提交账单格式样本。所有金额、卡号、姓名等个人信息已自动脱敏，仅用于优化 PDF 解析。' })}
+                  {i18n.language.startsWith('zh')
+                    ? '匿名提交已脱敏的账单格式样本，每份延长免费试用 +7 天（解析失败的新银行格式 +30 天）'
+                    : 'Submit anonymized statement format. +7 days trial extension per sample (+30 days for new banks)'}
                 </p>
               </div>
             </label>
