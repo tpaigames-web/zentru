@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, X } from 'lucide-react'
 import { useModulesStore } from '@/stores/useModulesStore'
 import { toggleModule, updateModulePlan } from '@/services/adminService'
 
 export default function AdminModules() {
+  const { i18n } = useTranslation()
+  const isZh = i18n.language.startsWith('zh')
   const { modules, loadModules } = useModulesStore()
   const [saving, setSaving] = useState<string | null>(null)
 
@@ -12,7 +15,10 @@ export default function AdminModules() {
   }, [loadModules])
 
   const handleToggle = async (moduleKey: string, currentEnabled: boolean) => {
-    if (!confirm(`${currentEnabled ? 'Disable' : 'Enable'} module "${moduleKey}" for all users?`)) return
+    const msg = isZh
+      ? `${currentEnabled ? '禁用' : '启用'}模块 "${moduleKey}"？（对所有用户生效）`
+      : `${currentEnabled ? 'Disable' : 'Enable'} module "${moduleKey}" for all users?`
+    if (!confirm(msg)) return
     setSaving(moduleKey)
     await toggleModule(moduleKey, !currentEnabled)
     await loadModules()
@@ -38,19 +44,20 @@ export default function AdminModules() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Modules</h1>
+        <h1 className="text-2xl font-bold">{isZh ? '模块管理' : 'Modules'}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Control which features are available to users globally
+          {isZh ? '全局控制功能的可用性' : 'Control which features are available to users globally'}
         </p>
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
         <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-warning">Compliance Warning</p>
+          <p className="text-sm font-medium text-warning">{isZh ? '合规警告' : 'Compliance Warning'}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Modules marked with red are high-risk (could be misinterpreted as financial advice).
-            Keep them OFF unless you have proper disclaimers.
+            {isZh
+              ? '红色标记的模块有合规风险（可能被误解为金融建议），除非有免责声明，否则保持关闭'
+              : 'Modules marked with red are high-risk (could be misinterpreted as financial advice). Keep them OFF unless you have proper disclaimers.'}
           </p>
         </div>
       </div>
@@ -66,10 +73,10 @@ export default function AdminModules() {
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground border-b">
               <tr>
-                <th className="px-4 py-2 font-medium">Module</th>
-                <th className="px-4 py-2 font-medium">Plan</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Toggle</th>
+                <th className="px-4 py-2 font-medium">{isZh ? '模块' : 'Module'}</th>
+                <th className="px-4 py-2 font-medium">{isZh ? '套餐' : 'Plan'}</th>
+                <th className="px-4 py-2 font-medium">{isZh ? '状态' : 'Status'}</th>
+                <th className="px-4 py-2 font-medium">{isZh ? '开关' : 'Toggle'}</th>
               </tr>
             </thead>
             <tbody>
@@ -79,10 +86,10 @@ export default function AdminModules() {
                   <tr key={m.key} className="border-t hover:bg-accent/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{m.name_en}</p>
+                        <p className="font-medium">{isZh ? m.name_zh : m.name_en}</p>
                         {isRisk && (
                           <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
-                            ⚠ HIGH RISK
+                            {isZh ? '⚠ 高风险' : '⚠ HIGH RISK'}
                           </span>
                         )}
                       </div>
@@ -95,18 +102,18 @@ export default function AdminModules() {
                         disabled={saving === m.key}
                         className="rounded border bg-background px-2 py-1 text-xs"
                       >
-                        <option value="free">Free</option>
+                        <option value="free">{isZh ? '免费' : 'Free'}</option>
                         <option value="premium">Premium</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">
                       {m.enabled ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs text-green-600">
-                          <Check className="h-3 w-3" /> Enabled
+                          <Check className="h-3 w-3" /> {isZh ? '启用' : 'Enabled'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          <X className="h-3 w-3" /> Disabled
+                          <X className="h-3 w-3" /> {isZh ? '禁用' : 'Disabled'}
                         </span>
                       )}
                     </td>

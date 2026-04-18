@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Users, Crown, Clock, TrendingUp, FileText, Activity } from 'lucide-react'
 import { getAdminStats, type AdminStats } from '@/services/adminService'
 
@@ -27,6 +28,8 @@ function StatCard({ icon: Icon, label, value, subtitle, color = '#3b82f6' }: {
 }
 
 export default function AdminDashboard() {
+  const { i18n } = useTranslation()
+  const isZh = i18n.language.startsWith('zh')
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -60,37 +63,39 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Zentru admin overview</p>
+        <h1 className="text-2xl font-bold">{isZh ? '仪表盘' : 'Dashboard'}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isZh ? 'Zentru 管理概览' : 'Zentru admin overview'}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           icon={Users}
-          label="Total Users"
+          label={isZh ? '总用户' : 'Total Users'}
           value={stats.total_users}
-          subtitle={`+${stats.new_users_7d} this week`}
+          subtitle={isZh ? `本周 +${stats.new_users_7d}` : `+${stats.new_users_7d} this week`}
           color="#3b82f6"
         />
         <StatCard
           icon={Clock}
-          label="In Trial"
+          label={isZh ? '试用中' : 'In Trial'}
           value={stats.users_in_trial}
-          subtitle="Active 90-day trials"
+          subtitle={isZh ? '90 天试用期' : 'Active 90-day trials'}
           color="#f59e0b"
         />
         <StatCard
           icon={Crown}
-          label="Premium Users"
+          label={isZh ? '付费用户' : 'Premium Users'}
           value={stats.premium_users}
-          subtitle={`${conversionRate}% conversion`}
+          subtitle={isZh ? `${conversionRate}% 转化率` : `${conversionRate}% conversion`}
           color="#10b981"
         />
         <StatCard
           icon={TrendingUp}
-          label="New (30d)"
+          label={isZh ? '新增 (30天)' : 'New (30d)'}
           value={stats.new_users_30d}
-          subtitle="Growth"
+          subtitle={isZh ? '增长' : 'Growth'}
           color="#8b5cf6"
         />
       </div>
@@ -98,42 +103,42 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <StatCard
           icon={Activity}
-          label="DAU (7d)"
+          label={isZh ? 'DAU (7天)' : 'DAU (7d)'}
           value={stats.dau_7d}
-          subtitle="Daily active users"
+          subtitle={isZh ? '日活跃用户' : 'Daily active users'}
           color="#06b6d4"
         />
         <StatCard
           icon={Activity}
-          label="MAU (30d)"
+          label={isZh ? 'MAU (30天)' : 'MAU (30d)'}
           value={stats.mau_30d}
-          subtitle="Monthly active users"
+          subtitle={isZh ? '月活跃用户' : 'Monthly active users'}
           color="#ec4899"
         />
         <StatCard
           icon={FileText}
-          label="Samples"
+          label={isZh ? '样本' : 'Samples'}
           value={stats.total_samples}
-          subtitle={`+${stats.samples_7d} this week`}
+          subtitle={isZh ? `本周 +${stats.samples_7d}` : `+${stats.samples_7d} this week`}
           color="#64748b"
         />
       </div>
 
       {/* Quick actions */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
+        <h2 className="text-sm font-semibold mb-3">{isZh ? '快速操作' : 'Quick Actions'}</h2>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <a href="/internal/ops/users" className="rounded-lg border px-3 py-2 text-xs hover:bg-accent transition-colors text-center">
-            Manage Users
+            {isZh ? '管理用户' : 'Manage Users'}
           </a>
           <a href="/internal/ops/modules" className="rounded-lg border px-3 py-2 text-xs hover:bg-accent transition-colors text-center">
-            Toggle Modules
+            {isZh ? '模块开关' : 'Toggle Modules'}
           </a>
           <a href="/internal/ops/samples" className="rounded-lg border px-3 py-2 text-xs hover:bg-accent transition-colors text-center">
-            Review Samples
+            {isZh ? '审核样本' : 'Review Samples'}
           </a>
           <a href="/internal/ops/broadcasts" className="rounded-lg border px-3 py-2 text-xs hover:bg-accent transition-colors text-center">
-            Send Broadcast
+            {isZh ? '发送公告' : 'Send Broadcast'}
           </a>
         </div>
       </div>

@@ -114,6 +114,47 @@ export async function extendUserTrial(userId: string, days: number): Promise<boo
   }
 }
 
+/** Set user's premium plan with optional expiration (null = permanent) */
+export async function setUserPremium(
+  userId: string,
+  plan: 'free' | 'premium',
+  expiresAt: string | null
+): Promise<boolean> {
+  try {
+    const { data: oldData } = await supabase
+      .from('profiles')
+      .select('plan, plan_expires_at')
+      .eq('id', userId)
+      .single()
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        plan,
+        plan_expires_at: expiresAt,
+      })
+      .eq('id', userId)
+
+    if (error) {
+      console.error('Failed to set premium:', error)
+      return false
+    }
+
+    await supabase.rpc('log_admin_action', {
+      p_action: 'user.set_premium',
+      p_target_type: 'user',
+      p_target_id: userId,
+      p_old_value: oldData,
+      p_new_value: { plan, plan_expires_at: expiresAt },
+    })
+
+    return true
+  } catch (e) {
+    console.error('setUserPremium error:', e)
+    return false
+  }
+}
+
 /** Change user role (super_admin only) */
 export async function changeUserRole(userId: string, newRole: string): Promise<boolean> {
   try {
