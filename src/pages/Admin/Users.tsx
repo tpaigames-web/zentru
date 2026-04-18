@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Crown, Clock, User as UserIcon, Calendar, Infinity as InfinityIcon, Undo } from 'lucide-react'
-import { searchUsers, extendUserTrial, setUserPremium, type AdminUser } from '@/services/adminService'
+import { Search, Crown, Clock, User as UserIcon, Calendar, Infinity as InfinityIcon, Undo, Timer } from 'lucide-react'
+import { searchUsers, extendUserTrial, setUserPremium, setUserTrialEndsAt, type AdminUser } from '@/services/adminService'
 
 export default function AdminUsers() {
   const { i18n } = useTranslation()
@@ -10,6 +10,8 @@ export default function AdminUsers() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
+  const [customTrialDate, setCustomTrialDate] = useState('')
+  const [customPremiumDate, setCustomPremiumDate] = useState('')
 
   useEffect(() => {
     loadUsers('')
@@ -35,6 +37,71 @@ export default function AdminUsers() {
       setSelectedUser(null)
     } else {
       alert(isZh ? '延长失败' : 'Failed to extend trial')
+    }
+  }
+
+  /**
+   * Set trial to expire a specific number of milliseconds from now.
+   * Useful for precise testing: e.g. 60*1000 = 1 minute, 24*3600*1000 = 1 day.
+   */
+  const handleSetTrialDuration = async (userId: string, ms: number, label: string) => {
+    const iso = new Date(Date.now() + ms).toISOString()
+    const ok = await setUserTrialEndsAt(userId, iso)
+    if (ok) {
+      alert(isZh ? `✓ 试用将在 ${label} 后到期\n(${new Date(iso).toLocaleString()})` : `✓ Trial will expire in ${label}\n(${new Date(iso).toLocaleString()})`)
+      loadUsers(query)
+      setSelectedUser(null)
+    } else {
+      alert(isZh ? '设置失败' : 'Failed to set')
+    }
+  }
+
+  /** Set trial to a specific datetime (from the <input type=datetime-local>) */
+  const handleSetCustomTrial = async (userId: string) => {
+    if (!customTrialDate) {
+      alert(isZh ? '请选择时间' : 'Please pick a date/time')
+      return
+    }
+    const iso = new Date(customTrialDate).toISOString()
+    const ok = await setUserTrialEndsAt(userId, iso)
+    if (ok) {
+      alert(isZh ? `✓ 试用到期已设为 ${new Date(iso).toLocaleString()}` : `✓ Trial end set to ${new Date(iso).toLocaleString()}`)
+      setCustomTrialDate('')
+      loadUsers(query)
+      setSelectedUser(null)
+    } else {
+      alert(isZh ? '设置失败' : 'Failed')
+    }
+  }
+
+  /** Set a short Premium subscription for testing (e.g. 1 day / 1 hour Premium) */
+  const handleSetPremiumDuration = async (userId: string, ms: number, label: string) => {
+    const iso = new Date(Date.now() + ms).toISOString()
+    const ok = await setUserPremium(userId, 'premium', iso)
+    if (ok) {
+      alert(isZh ? `✓ Premium 将在 ${label} 后到期\n(${new Date(iso).toLocaleString()})` : `✓ Premium expires in ${label}\n(${new Date(iso).toLocaleString()})`)
+      loadUsers(query)
+      setSelectedUser(null)
+    } else {
+      alert(isZh ? '设置失败' : 'Failed')
+    }
+  }
+
+  /** Set premium to a specific datetime */
+  const handleSetCustomPremium = async (userId: string) => {
+    if (!customPremiumDate) {
+      alert(isZh ? '请选择时间' : 'Please pick a date/time')
+      return
+    }
+    const iso = new Date(customPremiumDate).toISOString()
+    const ok = await setUserPremium(userId, 'premium', iso)
+    if (ok) {
+      alert(isZh ? `✓ Premium 到期已设为 ${new Date(iso).toLocaleString()}` : `✓ Premium expires at ${new Date(iso).toLocaleString()}`)
+      setCustomPremiumDate('')
+      loadUsers(query)
+      setSelectedUser(null)
+    } else {
+      alert(isZh ? '设置失败' : 'Failed')
     }
   }
 
@@ -178,7 +245,7 @@ export default function AdminUsers() {
       {selectedUser && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setSelectedUser(null)}
+          onClick={() => { setSelectedUser(null); setCustomTrialDate(''); setCustomPremiumDate('') }}
         >
           <div
             className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl max-h-[85vh] overflow-y-auto"
@@ -197,7 +264,7 @@ export default function AdminUsers() {
               {selectedUser.trial_ends_at && (
                 <p>
                   <span className="font-medium">{isZh ? '试用到期：' : 'Trial ends: '}</span>
-                  {new Date(selectedUser.trial_ends_at).toLocaleDateString()}
+                  {new Date(selectedUser.trial_ends_at).toLocaleString()}
                 </p>
               )}
             </div>
@@ -207,35 +274,92 @@ export default function AdminUsers() {
               <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">
                 {isZh ? '延长试用' : 'Extend Trial'}
               </p>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleExtendTrial(selectedUser.id, 7)}
-                  className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-sm hover:bg-accent"
+                  className="rounded-lg border px-2 py-2 text-xs hover:bg-accent"
                 >
-                  <span>{isZh ? '+ 7 天' : '+ 7 days'}</span>
-                  <Calendar className="h-4 w-4" />
+                  + 7 {isZh ? '天' : 'days'}
                 </button>
                 <button
                   onClick={() => handleExtendTrial(selectedUser.id, 30)}
-                  className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-sm hover:bg-accent"
+                  className="rounded-lg border px-2 py-2 text-xs hover:bg-accent"
                 >
-                  <span>{isZh ? '+ 30 天' : '+ 30 days'}</span>
-                  <Calendar className="h-4 w-4" />
+                  + 30 {isZh ? '天' : 'days'}
                 </button>
                 <button
                   onClick={() => handleExtendTrial(selectedUser.id, 90)}
-                  className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-sm hover:bg-accent"
+                  className="rounded-lg border px-2 py-2 text-xs hover:bg-accent"
                 >
-                  <span>{isZh ? '+ 90 天' : '+ 90 days'}</span>
-                  <Calendar className="h-4 w-4" />
+                  + 90 {isZh ? '天' : 'days'}
                 </button>
               </div>
+            </div>
+
+            {/* Short-duration testing presets (trial) */}
+            <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="flex items-center gap-1 text-xs font-semibold uppercase text-primary mb-2">
+                <Timer className="h-3 w-3" />
+                {isZh ? '测试用：快速到期（试用）' : 'Testing: Quick Expire (Trial)'}
+              </p>
+              <p className="text-[10px] text-muted-foreground mb-2">
+                {isZh ? '设置从现在开始的短时长，便于测试 Paywall 和到期流程' : 'Set short durations from now for Paywall/expiry testing'}
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  onClick={() => handleSetTrialDuration(selectedUser.id, 2 * 60 * 1000, isZh ? '2 分钟' : '2 min')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  2 {isZh ? '分钟' : 'min'}
+                </button>
+                <button
+                  onClick={() => handleSetTrialDuration(selectedUser.id, 60 * 60 * 1000, isZh ? '1 小时' : '1 hr')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  1 {isZh ? '小时' : 'hr'}
+                </button>
+                <button
+                  onClick={() => handleSetTrialDuration(selectedUser.id, 24 * 60 * 60 * 1000, isZh ? '1 天' : '1 day')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  1 {isZh ? '天' : 'day'}
+                </button>
+                <button
+                  onClick={() => handleSetTrialDuration(selectedUser.id, 3 * 24 * 60 * 60 * 1000, isZh ? '3 天' : '3 days')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  3 {isZh ? '天' : 'days'}
+                </button>
+              </div>
+              <div className="mt-2.5 flex gap-1.5">
+                <input
+                  type="datetime-local"
+                  value={customTrialDate}
+                  onChange={(e) => setCustomTrialDate(e.target.value)}
+                  className="flex-1 rounded-md border bg-background px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  onClick={() => handleSetCustomTrial(selectedUser.id)}
+                  disabled={!customTrialDate}
+                  className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground disabled:opacity-40"
+                >
+                  {isZh ? '设定' : 'Set'}
+                </button>
+              </div>
+              {selectedUser.trial_ends_at && (
+                <button
+                  onClick={() => handleSetTrialDuration(selectedUser.id, -60 * 1000, isZh ? '已过期' : 'expired')}
+                  className="mt-2 w-full rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+                >
+                  {isZh ? '⚡ 立即过期（1 分钟前）' : '⚡ Expire Now (-1 min)'}
+                </button>
+              )}
             </div>
 
             {/* Premium management */}
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                {isZh ? '付费管理（测试用）' : 'Premium Management (for testers)'}
+                {isZh ? '付费管理' : 'Premium Management'}
               </p>
               <div className="space-y-2">
                 <button
@@ -244,7 +368,7 @@ export default function AdminUsers() {
                 >
                   <span className="flex items-center gap-2">
                     <InfinityIcon className="h-4 w-4 text-warning" />
-                    {isZh ? '永久 Premium（测试账号）' : 'Permanent Premium (tester)'}
+                    {isZh ? '永久 Premium' : 'Permanent Premium'}
                   </span>
                   <Crown className="h-4 w-4 text-warning" />
                 </button>
@@ -252,8 +376,10 @@ export default function AdminUsers() {
                   onClick={() => handleSetPremium(selectedUser.id, '1year')}
                   className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-sm hover:bg-accent"
                 >
-                  <span>{isZh ? '付费 1 年（手动赠送）' : 'Premium 1 year (manual grant)'}</span>
-                  <Crown className="h-4 w-4" />
+                  <span className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {isZh ? '付费 1 年' : 'Premium 1 year'}
+                  </span>
                 </button>
                 {selectedUser.plan === 'premium' && (
                   <button
@@ -269,8 +395,60 @@ export default function AdminUsers() {
               </div>
             </div>
 
+            {/* Short-duration testing presets (Premium) */}
+            <div className="mt-5 rounded-lg border border-warning/20 bg-warning/5 p-3">
+              <p className="flex items-center gap-1 text-xs font-semibold uppercase text-warning mb-2">
+                <Timer className="h-3 w-3" />
+                {isZh ? '测试用：快速到期（Premium）' : 'Testing: Quick Expire (Premium)'}
+              </p>
+              <p className="text-[10px] text-muted-foreground mb-2">
+                {isZh ? '赠送短期 Premium 便于测试到期降级流程' : 'Grant short Premium for expiry/downgrade testing'}
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  onClick={() => handleSetPremiumDuration(selectedUser.id, 2 * 60 * 1000, isZh ? '2 分钟' : '2 min')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  2 {isZh ? '分钟' : 'min'}
+                </button>
+                <button
+                  onClick={() => handleSetPremiumDuration(selectedUser.id, 60 * 60 * 1000, isZh ? '1 小时' : '1 hr')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  1 {isZh ? '小时' : 'hr'}
+                </button>
+                <button
+                  onClick={() => handleSetPremiumDuration(selectedUser.id, 24 * 60 * 60 * 1000, isZh ? '1 天' : '1 day')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  1 {isZh ? '天' : 'day'}
+                </button>
+                <button
+                  onClick={() => handleSetPremiumDuration(selectedUser.id, 7 * 24 * 60 * 60 * 1000, isZh ? '7 天' : '7 days')}
+                  className="rounded-md border bg-background px-2 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
+                  7 {isZh ? '天' : 'days'}
+                </button>
+              </div>
+              <div className="mt-2.5 flex gap-1.5">
+                <input
+                  type="datetime-local"
+                  value={customPremiumDate}
+                  onChange={(e) => setCustomPremiumDate(e.target.value)}
+                  className="flex-1 rounded-md border bg-background px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-warning"
+                />
+                <button
+                  onClick={() => handleSetCustomPremium(selectedUser.id)}
+                  disabled={!customPremiumDate}
+                  className="rounded-md bg-warning px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-40"
+                >
+                  {isZh ? '设定' : 'Set'}
+                </button>
+              </div>
+            </div>
+
             <button
-              onClick={() => setSelectedUser(null)}
+              onClick={() => { setSelectedUser(null); setCustomTrialDate(''); setCustomPremiumDate('') }}
               className="mt-5 w-full rounded-lg bg-muted px-4 py-2 text-sm font-medium"
             >
               {isZh ? '关闭' : 'Close'}

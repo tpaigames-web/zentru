@@ -78,6 +78,43 @@ export async function getUserById(id: string): Promise<AdminUser | null> {
   return data as AdminUser
 }
 
+/**
+ * Set user's trial_ends_at to a specific ISO timestamp (admin action).
+ * Pass null to clear the trial end. Useful for precise testing (e.g. set
+ * trial to expire in 1 hour to verify paywall flows).
+ */
+export async function setUserTrialEndsAt(userId: string, isoDate: string | null): Promise<boolean> {
+  try {
+    const { data: oldData } = await supabase
+      .from('profiles')
+      .select('trial_ends_at')
+      .eq('id', userId)
+      .single()
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ trial_ends_at: isoDate })
+      .eq('id', userId)
+
+    if (error) {
+      console.error('Failed to set trial_ends_at:', error)
+      return false
+    }
+
+    await supabase.rpc('log_admin_action', {
+      p_action: 'user.set_trial_ends_at',
+      p_target_type: 'user',
+      p_target_id: userId,
+      p_old_value: { trial_ends_at: oldData?.trial_ends_at },
+      p_new_value: { trial_ends_at: isoDate },
+    })
+    return true
+  } catch (e) {
+    console.error('setUserTrialEndsAt error:', e)
+    return false
+  }
+}
+
 /** Extend user's trial (admin action) */
 export async function extendUserTrial(userId: string, days: number): Promise<boolean> {
   try {
