@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  PieChart, Pie, Cell, BarChart, Bar, YAxis, CartesianGrid, ResponsiveContainer,
+  PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
@@ -20,7 +20,7 @@ import { getTaxSummary, getTotalTaxRelief } from '@/services/taxDeduction'
 type ReportTab = 'overview' | 'expenses' | 'income' | 'cashback' | 'investment' | 'merchant' | 'tax'
 
 export default function AnalyticsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { categories } = useCategoryStore()
@@ -211,49 +211,251 @@ export default function AnalyticsPage() {
       </div>
 
       {/* === Overview === */}
-      {activeTab === 'overview' && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <p className="text-[11px] text-muted-foreground">{t('transactions.expense')}</p>
-              <p className="mt-0.5 text-base font-bold text-destructive">{formatAmount(totalExpense, currency)}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <p className="text-[11px] text-muted-foreground">{t('transactions.income')}</p>
-              <p className="mt-0.5 text-base font-bold text-success">{formatAmount(totalIncome, currency)}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <p className="text-[11px] text-muted-foreground">{t('analytics.net')}</p>
-              <p className={cn('mt-0.5 text-base font-bold', netFlow >= 0 ? 'text-success' : 'text-destructive')}>
-                {netFlow >= 0 ? '+' : ''}{formatAmount(netFlow, currency)}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <p className="text-[11px] text-muted-foreground">Cashback</p>
-              <p className="mt-0.5 text-base font-bold text-primary">{formatAmount(totalCashback, currency)}</p>
-            </div>
-          </div>
+      {activeTab === 'overview' && (() => {
+        const isZh = i18n.language.startsWith('zh')
+        const days = Math.max(1, Math.ceil((dateRange.end - dateRange.start) / (1000 * 60 * 60 * 24)))
+        const dailyAvgExpense = totalExpense / days
+        const savingsRate = totalIncome > 0 ? ((netFlow / totalIncome) * 100) : 0
+        const effectiveCashbackRate = totalExpense > 0 ? ((totalCashback / totalExpense) * 100) : 0
 
-          {/* Income vs Expense bar chart — view only, no tooltip */}
-          {(totalIncome > 0 || totalExpense > 0) && (
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <h3 className="mb-2 text-xs font-semibold">{t('analytics.incomeVsExpense')}</h3>
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[{ income: totalIncome, expense: totalExpense }]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                    <Bar dataKey="income" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} barSize={32} />
-                    <Bar dataKey="expense" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} barSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
+        // Monthly trend for this year
+        const now = new Date(dateRange.end)
+        const months: { label: string; income: number; expense: number; net: number }[] = []
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+          const mStart = d.getTime()
+          const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime()
+          const mTx = transactions.filter((tx) => tx.date >= mStart && tx.date <= mEnd)
+          const mIncome = mTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+          const mExpense = mTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+          months.push({
+            label: `${d.getMonth() + 1}${isZh ? '月' : ''}`,
+            income: mIncome,
+            expense: mExpense,
+            net: mIncome - mExpense,
+          })
+        }
+
+        // Top category with growth indication
+        const topExpCat = expenseByCategory[0]
+        // Largest single transaction
+        const largestTx = [...filteredTx].filter((t) => t.type === 'expense').sort((a, b) => b.amount - a.amount)[0]
+        // Active days (days with at least 1 transaction)
+        const activeDays = new Set(filteredTx.map((t) => new Date(t.date).toDateString())).size
+
+        return (
+          <div className="space-y-4">
+            {/* Hero: Main summary with gradient */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-xl border bg-gradient-to-br from-red-500/5 to-red-500/10 p-4">
+                <p className="text-xs text-muted-foreground mb-1">{isZh ? '总支出' : 'Total Expense'}</p>
+                <p className="text-xl font-bold text-red-500">{formatAmount(totalExpense, currency)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {isZh ? '日均' : 'Daily avg'}: {formatAmount(dailyAvgExpense, currency)}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-gradient-to-br from-green-500/5 to-green-500/10 p-4">
+                <p className="text-xs text-muted-foreground mb-1">{isZh ? '总收入' : 'Total Income'}</p>
+                <p className="text-xl font-bold text-green-500">{formatAmount(totalIncome, currency)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {txCount} {isZh ? '笔交易' : 'transactions'}
+                </p>
+              </div>
+              <div className={cn(
+                'rounded-xl border p-4',
+                netFlow >= 0
+                  ? 'bg-gradient-to-br from-primary/5 to-primary/10'
+                  : 'bg-gradient-to-br from-red-500/5 to-red-500/10'
+              )}>
+                <p className="text-xs text-muted-foreground mb-1">{isZh ? '净结余' : 'Net Flow'}</p>
+                <p className={cn('text-xl font-bold', netFlow >= 0 ? 'text-primary' : 'text-red-500')}>
+                  {netFlow >= 0 ? '+' : ''}{formatAmount(netFlow, currency)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {isZh ? '储蓄率' : 'Savings rate'}: {savingsRate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-xl border bg-gradient-to-br from-amber-500/5 to-amber-500/10 p-4">
+                <p className="text-xs text-muted-foreground mb-1">Cashback</p>
+                <p className="text-xl font-bold text-amber-600">{formatAmount(totalCashback, currency)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {isZh ? '有效率' : 'Effective rate'}: {effectiveCashbackRate.toFixed(2)}%
+                </p>
               </div>
             </div>
-          )}
 
-          <p className="text-[11px] text-muted-foreground text-center">{txCount} {t('analytics.txInPeriod')}</p>
-        </div>
-      )}
+            {/* 6-Month trend */}
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">{isZh ? '6 个月趋势' : '6-Month Trend'}</h3>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    {isZh ? '支出' : 'Expense'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    {isZh ? '收入' : 'Income'}
+                  </span>
+                </div>
+              </div>
+              {(() => {
+                const maxT = Math.max(...months.map((m) => Math.max(m.income, m.expense)), 1)
+                return (
+                  <div className="grid grid-cols-6 gap-2">
+                    {months.map((m, i) => (
+                      <div key={i} className="flex flex-col items-center">
+                        <div className="flex items-end justify-center gap-0.5 h-24 w-full">
+                          <div
+                            className="w-1/2 rounded-t bg-red-500/70 transition-all hover:bg-red-500"
+                            style={{ height: `${(m.expense / maxT) * 100}%`, minHeight: m.expense > 0 ? '2px' : '0' }}
+                            title={formatAmount(m.expense, currency)}
+                          />
+                          <div
+                            className="w-1/2 rounded-t bg-green-500/70 transition-all hover:bg-green-500"
+                            style={{ height: `${(m.income / maxT) * 100}%`, minHeight: m.income > 0 ? '2px' : '0' }}
+                            title={formatAmount(m.income, currency)}
+                          />
+                        </div>
+                        <span className="mt-1.5 text-[10px] text-muted-foreground">{m.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Insights row */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-xl border bg-card p-3">
+                <p className="text-[11px] text-muted-foreground">{isZh ? '消费天数' : 'Active Days'}</p>
+                <p className="mt-1 text-lg font-bold">{activeDays}<span className="text-xs text-muted-foreground"> / {days}</span></p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {((activeDays / days) * 100).toFixed(0)}% {isZh ? '天有消费' : 'days active'}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-3">
+                <p className="text-[11px] text-muted-foreground">{isZh ? '平均单笔' : 'Avg per Tx'}</p>
+                <p className="mt-1 text-lg font-bold">
+                  {formatAmount(totalExpense / Math.max(1, filteredTx.filter((t) => t.type === 'expense').length), currency)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{isZh ? '支出' : 'expense'}</p>
+              </div>
+              <div className="rounded-xl border bg-card p-3">
+                <p className="text-[11px] text-muted-foreground">{isZh ? '最大单笔' : 'Largest Tx'}</p>
+                <p className="mt-1 text-lg font-bold text-red-500">
+                  {largestTx ? formatAmount(largestTx.amount, currency) : '—'}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground truncate">
+                  {largestTx?.merchant?.substring(0, 15) || '—'}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-3">
+                <p className="text-[11px] text-muted-foreground">{isZh ? '最高类别' : 'Top Category'}</p>
+                <p className="mt-1 text-lg font-bold truncate">
+                  {topExpCat
+                    ? (isZh && topExpCat.nameKey
+                      ? (t(topExpCat.nameKey, { defaultValue: topExpCat.name }) as string)
+                      : topExpCat.name)
+                    : '—'}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {topExpCat ? formatAmount(topExpCat.total, currency) : '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick breakdown preview */}
+            {expenseByCategory.length > 0 && (
+              <div className="rounded-xl border bg-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold">{isZh ? '支出分布' : 'Expense Breakdown'}</h3>
+                  <button
+                    onClick={() => setActiveTab('expenses')}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {isZh ? '查看详情 →' : 'View all →'}
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {expenseByCategory.slice(0, 5).map((item, i) => {
+                    const percent = totalExpense > 0 ? (item.total / totalExpense) * 100 : 0
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <div
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                          style={{ backgroundColor: (item.color || '#64748b') + '20' }}
+                        >
+                          <CategoryIcon
+                            name={item.icon || 'MoreHorizontal'}
+                            className="h-4 w-4"
+                            style={{ color: item.color || '#64748b' }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium truncate">
+                              {isZh && item.nameKey
+                                ? (t(item.nameKey, { defaultValue: item.name }) as string)
+                                : item.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                              {formatAmount(item.total, currency)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full transition-all"
+                              style={{
+                                width: `${percent}%`,
+                                backgroundColor: item.color || '#64748b',
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground w-10 text-right">
+                          {percent.toFixed(0)}%
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Top merchants preview */}
+            {merchantTotals.length > 0 && (
+              <div className="rounded-xl border bg-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold">{isZh ? '热门商户' : 'Top Merchants'}</h3>
+                  <button
+                    onClick={() => setActiveTab('merchant')}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {isZh ? '查看详情 →' : 'View all →'}
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {merchantTotals.slice(0, 5).map((m, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{m.merchant}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {m.count} {isZh ? '笔' : 'tx'} · {isZh ? '平均' : 'avg'} {formatAmount(m.total / m.count, currency)}
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold text-red-500">{formatAmount(m.total, currency)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* === Expenses === */}
       {activeTab === 'expenses' && (
