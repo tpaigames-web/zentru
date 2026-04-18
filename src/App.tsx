@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, lazy, Suspense, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { DataProvider } from '@/data/DataProvider'
 import { seedDefaultCategories } from '@/data/seed'
@@ -12,40 +12,64 @@ import { useUserStore } from '@/stores/useUserStore'
 import { useModulesStore } from '@/stores/useModulesStore'
 
 // Lazy load all pages — each becomes a separate chunk
-const LoginPage = lazy(() => import('@/pages/Auth/LoginPage'))
-const Onboarding = lazy(() => import('@/pages/Onboarding').then(m => ({ default: m.Onboarding })))
-const LockScreen = lazy(() => import('@/components/LockScreen').then(m => ({ default: m.LockScreen })))
-const DashboardPage = lazy(() => import('@/pages/Dashboard'))
-const CardsPage = lazy(() => import('@/pages/Cards'))
-const CardDetailPage = lazy(() => import('@/pages/Cards/CardDetail'))
-const TransactionsPage = lazy(() => import('@/pages/Transactions'))
-const NewTransactionPage = lazy(() => import('@/pages/Transactions/NewTransaction'))
-const QuickAddPage = lazy(() => import('@/pages/Transactions/QuickAdd'))
-const TransferPage = lazy(() => import('@/pages/Transactions/Transfer'))
-const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
-const PredictionsPage = lazy(() => import('@/pages/Predictions'))
-const BudgetPage = lazy(() => import('@/pages/Budget'))
-const CashbackPage = lazy(() => import('@/pages/Cashback'))
-const SmartCardPage = lazy(() => import('@/pages/SmartCard'))
-const RecurringPage = lazy(() => import('@/pages/Recurring'))
-const CategoriesPage = lazy(() => import('@/pages/Categories'))
-const PaymentMethodsPage = lazy(() => import('@/pages/PaymentMethods'))
-const ImportPage = lazy(() => import('@/pages/Import'))
-const SettingsPage = lazy(() => import('@/pages/Settings'))
-const AboutPage = lazy(() => import('@/pages/Settings/About'))
-const PrivacyPolicyPage = lazy(() => import('@/pages/Settings/PrivacyPolicy'))
-const UICustomizePage = lazy(() => import('@/pages/Settings/UICustomize'))
-const ContributionsPage = lazy(() => import('@/pages/Settings/Contributions'))
+/**
+ * Safe lazy wrapper: auto-reloads page on chunk load failure.
+ * Happens when user has old service worker cache but new deploy
+ * removed the old chunk file names.
+ */
+const RELOAD_KEY = 'zentru-chunk-reload-attempted'
+function safeLazy<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    loader().catch((err) => {
+      console.error('Lazy chunk failed:', err)
+      // Prevent reload loop: only auto-reload once per session
+      if (!sessionStorage.getItem(RELOAD_KEY)) {
+        sessionStorage.setItem(RELOAD_KEY, '1')
+        // Clear caches and reload
+        if ('caches' in window) {
+          caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)))
+        }
+        setTimeout(() => window.location.reload(), 100)
+      }
+      throw err
+    })
+  )
+}
+
+const LoginPage = safeLazy(() => import('@/pages/Auth/LoginPage'))
+const Onboarding = safeLazy(() => import('@/pages/Onboarding').then(m => ({ default: m.Onboarding })))
+const LockScreen = safeLazy(() => import('@/components/LockScreen').then(m => ({ default: m.LockScreen })))
+const DashboardPage = safeLazy(() => import('@/pages/Dashboard'))
+const CardsPage = safeLazy(() => import('@/pages/Cards'))
+const CardDetailPage = safeLazy(() => import('@/pages/Cards/CardDetail'))
+const TransactionsPage = safeLazy(() => import('@/pages/Transactions'))
+const NewTransactionPage = safeLazy(() => import('@/pages/Transactions/NewTransaction'))
+const QuickAddPage = safeLazy(() => import('@/pages/Transactions/QuickAdd'))
+const TransferPage = safeLazy(() => import('@/pages/Transactions/Transfer'))
+const AnalyticsPage = safeLazy(() => import('@/pages/Analytics'))
+const PredictionsPage = safeLazy(() => import('@/pages/Predictions'))
+const BudgetPage = safeLazy(() => import('@/pages/Budget'))
+const CashbackPage = safeLazy(() => import('@/pages/Cashback'))
+const SmartCardPage = safeLazy(() => import('@/pages/SmartCard'))
+const RecurringPage = safeLazy(() => import('@/pages/Recurring'))
+const CategoriesPage = safeLazy(() => import('@/pages/Categories'))
+const PaymentMethodsPage = safeLazy(() => import('@/pages/PaymentMethods'))
+const ImportPage = safeLazy(() => import('@/pages/Import'))
+const SettingsPage = safeLazy(() => import('@/pages/Settings'))
+const AboutPage = safeLazy(() => import('@/pages/Settings/About'))
+const PrivacyPolicyPage = safeLazy(() => import('@/pages/Settings/PrivacyPolicy'))
+const UICustomizePage = safeLazy(() => import('@/pages/Settings/UICustomize'))
+const ContributionsPage = safeLazy(() => import('@/pages/Settings/Contributions'))
 
 // Admin pages (lazy loaded)
-const AdminLayout = lazy(() => import('@/pages/Admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
-const AdminDashboard = lazy(() => import('@/pages/Admin/Dashboard'))
-const AdminUsers = lazy(() => import('@/pages/Admin/Users'))
-const AdminModules = lazy(() => import('@/pages/Admin/Modules'))
-const AdminRoles = lazy(() => import('@/pages/Admin/Roles'))
-const AdminAuditLog = lazy(() => import('@/pages/Admin/AuditLog'))
-const AdminAppVersions = lazy(() => import('@/pages/Admin/AppVersions'))
-const AdminPlaceholderComponent = lazy(() => import('@/pages/Admin/Placeholder').then(m => ({ default: () => {
+const AdminLayout = safeLazy(() => import('@/pages/Admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminDashboard = safeLazy(() => import('@/pages/Admin/Dashboard'))
+const AdminUsers = safeLazy(() => import('@/pages/Admin/Users'))
+const AdminModules = safeLazy(() => import('@/pages/Admin/Modules'))
+const AdminRoles = safeLazy(() => import('@/pages/Admin/Roles'))
+const AdminAuditLog = safeLazy(() => import('@/pages/Admin/AuditLog'))
+const AdminAppVersions = safeLazy(() => import('@/pages/Admin/AppVersions'))
+const AdminPlaceholderComponent = safeLazy(() => import('@/pages/Admin/Placeholder').then(m => ({ default: () => {
   const path = window.location.pathname
   const titles: Record<string, string> = {
     '/internal/ops/samples': 'Sample Review',
@@ -56,8 +80,8 @@ const AdminPlaceholderComponent = lazy(() => import('@/pages/Admin/Placeholder')
   }
   return m.AdminPlaceholder({ title: titles[path] || 'Coming Soon' })
 } })))
-const LandingPage = lazy(() => import('@/pages/Landing'))
-const NotFoundPage = lazy(() => import('@/pages/NotFound'))
+const LandingPage = safeLazy(() => import('@/pages/Landing'))
+const NotFoundPage = safeLazy(() => import('@/pages/NotFound'))
 
 function PageLoader() {
   return (
@@ -72,7 +96,7 @@ const ONBOARDING_KEY = 'zentru-onboarded'
 
 export default function App() {
   const [ready, setReady] = useState(false)
-  const [initError, setInitError] = useState<string | null>(null)
+  const [initError] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [updateCheck, setUpdateCheck] = useState<VersionCheckResult | null>(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
@@ -102,19 +126,42 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // Wrap each task with individual timeout so slow network doesn't block boot
+    const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T | null> => {
+      return Promise.race([
+        promise.catch((e) => { console.warn(`${label} failed:`, e); return null }),
+        new Promise<null>((resolve) => setTimeout(() => {
+          console.warn(`${label} timed out after ${ms}ms — continuing anyway`)
+          resolve(null)
+        }, ms)),
+      ])
+    }
+
+    // Run all init tasks in parallel with 5s timeout each
+    // App will always become ready within 5s even if network is dead
     Promise.all([
-      seedDefaultCategories().catch((e) => console.warn('Seed failed:', e)),
-      initialize().catch((e) => console.warn('Auth init failed:', e)),
-      useModulesStore.getState().loadModules().catch((e) => console.warn('Modules init failed:', e)),
+      withTimeout(seedDefaultCategories(), 5000, 'Seed'),
+      withTimeout(initialize(), 5000, 'Auth init'),
+      withTimeout(useModulesStore.getState().loadModules(), 5000, 'Modules'),
     ]).then(() => {
       const onboarded = localStorage.getItem(ONBOARDING_KEY)
       if (!onboarded) setShowOnboarding(true)
       setReady(true)
-    }).catch((e) => {
-      console.error('App init failed:', e)
-      setInitError(e?.message || 'Unknown error')
-      setReady(true)
     })
+
+    // Hard fallback: force ready after 6s no matter what
+    // Also force user-store loading to false if it's still stuck
+    // (e.g. Supabase getSession hung with no network)
+    const hardTimeout = setTimeout(() => {
+      setReady((current) => current || true)
+      const userStore = useUserStore.getState()
+      if (userStore.loading) {
+        console.warn('Auth still loading after 6s — forcing unblock')
+        useUserStore.setState({ loading: false })
+      }
+    }, 6000)
+
+    return () => clearTimeout(hardTimeout)
   }, [])
 
   const handleOnboardingComplete = () => {
@@ -142,6 +189,24 @@ export default function App() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '40px', height: '40px', border: '4px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
           <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Loading...</p>
+          <button
+            onClick={async () => {
+              try {
+                if ('serviceWorker' in navigator) {
+                  const regs = await navigator.serviceWorker.getRegistrations()
+                  await Promise.all(regs.map((r) => r.unregister()))
+                }
+                if ('caches' in window) {
+                  const keys = await caches.keys()
+                  await Promise.all(keys.map((k) => caches.delete(k)))
+                }
+              } catch {}
+              window.location.reload()
+            }}
+            style={{ marginTop: '1.25rem', padding: '0.4rem 1rem', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#94a3b8', fontSize: '0.75rem', cursor: 'pointer' }}
+          >
+            Stuck? Clear cache & reload
+          </button>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       </div>
