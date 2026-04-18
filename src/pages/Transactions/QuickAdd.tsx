@@ -140,7 +140,7 @@ export default function QuickAddPage() {
           <button
             onClick={() => { setMode('expense'); setSelectedCategory(null) }}
             className={cn(
-              'rounded-full px-4 py-1.5 text-xs font-medium transition-colors',
+              'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
               mode === 'expense' ? 'bg-red-500 text-white' : 'text-muted-foreground'
             )}
           >
@@ -149,11 +149,17 @@ export default function QuickAddPage() {
           <button
             onClick={() => { setMode('income'); setSelectedCategory(null) }}
             className={cn(
-              'rounded-full px-4 py-1.5 text-xs font-medium transition-colors',
+              'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
               mode === 'income' ? 'bg-green-500 text-white' : 'text-muted-foreground'
             )}
           >
             {isZh ? '收入' : 'Income'}
+          </button>
+          <button
+            onClick={() => navigate('/transactions/transfer')}
+            className="rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+          >
+            {isZh ? '转账' : 'Transfer'}
           </button>
         </div>
         <button
