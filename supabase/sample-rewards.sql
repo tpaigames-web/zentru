@@ -15,10 +15,11 @@ ALTER TABLE public.statement_samples
   ADD COLUMN IF NOT EXISTS admin_notes TEXT,
   ADD COLUMN IF NOT EXISTS rejected BOOLEAN DEFAULT false;
 
--- Index for dedup (user + bank + day)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sample_dedup_daily
-  ON public.statement_samples (user_id, bank, DATE(submitted_at))
-  WHERE user_id IS NOT NULL AND NOT rejected;
+-- Simple index on user_id (dedup done in trigger, not in index,
+-- because DATE() is not IMMUTABLE in Postgres)
+CREATE INDEX IF NOT EXISTS idx_sample_user
+  ON public.statement_samples(user_id)
+  WHERE user_id IS NOT NULL;
 
 -- Index for hash-based dedup
 CREATE INDEX IF NOT EXISTS idx_sample_hash ON public.statement_samples(content_hash)
