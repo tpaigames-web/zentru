@@ -5,6 +5,8 @@ import { seedDefaultCategories } from '@/data/seed'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ModuleGuard } from '@/components/ModuleGuard'
 import { AdminGuard } from '@/components/AdminGuard'
+import { UpdateModal } from '@/components/shared/UpdateModal'
+import { checkForUpdate, type VersionCheckResult } from '@/services/versionCheck'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserStore } from '@/stores/useUserStore'
 import { useModulesStore } from '@/stores/useModulesStore'
@@ -40,6 +42,7 @@ const AdminUsers = lazy(() => import('@/pages/Admin/Users'))
 const AdminModules = lazy(() => import('@/pages/Admin/Modules'))
 const AdminRoles = lazy(() => import('@/pages/Admin/Roles'))
 const AdminAuditLog = lazy(() => import('@/pages/Admin/AuditLog'))
+const AdminAppVersions = lazy(() => import('@/pages/Admin/AppVersions'))
 const AdminPlaceholderComponent = lazy(() => import('@/pages/Admin/Placeholder').then(m => ({ default: () => {
   const path = window.location.pathname
   const titles: Record<string, string> = {
@@ -69,6 +72,8 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [updateCheck, setUpdateCheck] = useState<VersionCheckResult | null>(null)
+  const [updateDismissed, setUpdateDismissed] = useState(false)
   const { user, loading: authLoading, initialize } = useUserStore()
 
   // Prevent back button from closing the app (Android/PWA)
@@ -83,6 +88,15 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // Version check on startup (non-blocking)
+  useEffect(() => {
+    checkForUpdate().then((result) => {
+      if (result.action !== 'none') {
+        setUpdateCheck(result)
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -158,8 +172,17 @@ export default function App() {
     )
   }
 
+  // Forced update blocks everything else
+  if (updateCheck?.action === 'forced') {
+    return <UpdateModal result={updateCheck} />
+  }
+
   return (
     <DataProvider>
+      {/* Optional update banner (dismissible) */}
+      {updateCheck?.action === 'optional' && !updateDismissed && (
+        <UpdateModal result={updateCheck} onDismiss={() => setUpdateDismissed(true)} />
+      )}
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -171,7 +194,7 @@ export default function App() {
               <Route path="users" element={<AdminUsers />} />
               <Route path="modules" element={<AdminGuard required="admin"><AdminModules /></AdminGuard>} />
               <Route path="samples" element={<AdminPlaceholderComponent />} />
-              <Route path="versions" element={<AdminGuard required="super_admin"><AdminPlaceholderComponent /></AdminGuard>} />
+              <Route path="versions" element={<AdminGuard required="super_admin"><AdminAppVersions /></AdminGuard>} />
               <Route path="broadcasts" element={<AdminPlaceholderComponent />} />
               <Route path="audit" element={<AdminGuard required="super_admin"><AdminAuditLog /></AdminGuard>} />
               <Route path="roles" element={<AdminGuard required="super_admin"><AdminRoles /></AdminGuard>} />
