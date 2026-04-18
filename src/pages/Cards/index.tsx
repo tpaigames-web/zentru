@@ -16,14 +16,17 @@ import { PaymentHistory } from './PaymentHistory'
 import { ScanCard } from './ScanCard'
 import type { ScannedCardData } from '@/services/cardScanner'
 import { CashbackView } from './CashbackView'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { formatAmount } from '@/lib/currency'
 
 export default function CardsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { cards, addCard, updateCard, deleteCard } = useCardStore()
   const { addPayment } = usePaymentStore()
   const { transactions } = useTransactionStore()
   const currency = useSettingsStore((s) => s.currency)
+  const isZh = i18n.language.startsWith('zh')
 
   // Compute cashback info per card for this month
   const { start, end } = getMonthRange()
@@ -43,6 +46,7 @@ export default function CardsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingCard, setEditingCard] = useState<CreditCardType | undefined>()
   const [payingCard, setPayingCard] = useState<CreditCardType | undefined>()
+  const [payFullCard, setPayFullCard] = useState<CreditCardType | undefined>()
   const [historyCard, setHistoryCard] = useState<CreditCardType | undefined>()
   const [showScanner, setShowScanner] = useState(false)
   const [scannedData, setScannedData] = useState<ScannedCardData | undefined>()
@@ -89,6 +93,17 @@ export default function CardsPage() {
   const handlePayment = async (data: { cardId: string; amount: number; date: number; notes?: string }) => {
     await addPayment(data)
     setPayingCard(undefined)
+  }
+
+  const handlePayFullConfirm = async () => {
+    if (!payFullCard) return
+    await addPayment({
+      cardId: payFullCard.id,
+      amount: payFullCard.currentBalance,
+      date: Date.now(),
+      notes: isZh ? '一键全还' : 'Pay full balance',
+    })
+    setPayFullCard(undefined)
   }
 
   return (
@@ -152,6 +167,7 @@ export default function CardsPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onPayment={setPayingCard}
+              onPayFull={setPayFullCard}
               onPaymentHistory={setHistoryCard}
             />
           ))}
@@ -186,6 +202,21 @@ export default function CardsPage() {
         <PaymentHistory
           card={historyCard}
           onClose={() => setHistoryCard(undefined)}
+        />
+      )}
+
+      {payFullCard && (
+        <ConfirmDialog
+          title={isZh ? '一键全还' : 'Pay Full Balance'}
+          message={
+            isZh
+              ? `确认使用 ${formatAmount(payFullCard.currentBalance, payFullCard.currency)} 结清「${payFullCard.name}」的当前账单？`
+              : `Confirm paying ${formatAmount(payFullCard.currentBalance, payFullCard.currency)} to clear "${payFullCard.name}"?`
+          }
+          confirmLabel={isZh ? '确认全还' : 'Pay Full'}
+          destructive={false}
+          onConfirm={handlePayFullConfirm}
+          onCancel={() => setPayFullCard(undefined)}
         />
       )}
     </div>

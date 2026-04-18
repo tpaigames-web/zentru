@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Banknote, History, Pencil, Trash2, Sparkles } from 'lucide-react'
+import { Banknote, History, Pencil, Trash2, Sparkles, Wallet } from 'lucide-react'
 import type { CreditCard } from '@/models/card'
 import { formatAmount } from '@/lib/currency'
 import { getDaysUntilDue } from '@/lib/date'
@@ -20,6 +20,7 @@ interface CardItemProps {
   onEdit: (card: CreditCard) => void
   onDelete: (id: string) => void
   onPayment: (card: CreditCard) => void
+  onPayFull?: (card: CreditCard) => void
   onPaymentHistory: (card: CreditCard) => void
 }
 
@@ -55,7 +56,7 @@ function NetworkBadge({ network }: { network: string }) {
   return null
 }
 
-export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPayment, onPaymentHistory }: CardItemProps) {
+export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPayment, onPayFull, onPaymentHistory }: CardItemProps) {
   const { t, i18n } = useTranslation()
   const daysUntilDue = getDaysUntilDue(card.dueDay)
   const bankColors = getBankColors(card.bank)
@@ -170,13 +171,28 @@ export function CardItem({ card, cashbackInfo, onClick, onEdit, onDelete, onPaym
 
         {/* Actions */}
         <div className="flex gap-2">
-          <button onClick={() => onPayment(card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-success-foreground hover:bg-success/90 transition-colors">
+          <button
+            onClick={() => onPayment(card)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-success-foreground hover:bg-success/90 transition-colors"
+          >
             <Banknote className="h-3.5 w-3.5" />
             {t('cards.makePayment')}
           </button>
-          <button onClick={() => onPaymentHistory(card)} className="flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-accent transition-colors">
+          {onPayFull && card.currentBalance > 0 && (
+            <button
+              onClick={() => onPayFull(card)}
+              title={isZh ? '一键全还' : 'Pay full balance'}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              {isZh ? '全还' : 'Pay Full'}
+            </button>
+          )}
+          <button
+            onClick={() => onPaymentHistory(card)}
+            className="flex items-center justify-center rounded-lg border px-2.5 py-2 text-xs font-medium hover:bg-accent transition-colors"
+          >
             <History className="h-3.5 w-3.5" />
-            {t('cards.paymentHistory')}
           </button>
         </div>
       </div>
