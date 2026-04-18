@@ -156,40 +156,50 @@ export function OverviewSection() {
         )}
       </div>
 
-      {/* Main summary cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-xl border bg-gradient-to-br from-red-500/5 to-red-500/10 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="h-4 w-4 text-red-500" />
-            <span className="text-xs text-muted-foreground">{isZh ? '支出' : 'Expense'}</span>
+      {/* Hero: Big expense + income like MeowoZhangZhang */}
+      <div className="rounded-3xl bg-gradient-to-br from-orange-50 to-amber-50 dark:from-amber-950/30 dark:to-orange-950/30 p-6 border border-orange-100 dark:border-amber-900/50">
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+              <p className="text-xs text-muted-foreground font-medium">{rangeLabel} · {isZh ? '支出' : 'Expense'}</p>
+            </div>
+            <p className="text-3xl font-bold text-red-500 tabular-nums">{formatAmount(expense, currency)}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {isZh ? '日均' : 'Daily'} {formatAmount(dailyAvg, currency)}
+            </p>
           </div>
-          <p className="text-lg md:text-xl font-bold text-red-500">{formatAmount(expense, currency)}</p>
-        </div>
-
-        <div className="rounded-xl border bg-gradient-to-br from-green-500/5 to-green-500/10 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="h-4 w-4 text-green-500" />
-            <span className="text-xs text-muted-foreground">{isZh ? '收入' : 'Income'}</span>
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+              <p className="text-xs text-muted-foreground font-medium">{rangeLabel} · {isZh ? '收入' : 'Income'}</p>
+            </div>
+            <p className="text-3xl font-bold text-green-500 tabular-nums">{formatAmount(income, currency)}</p>
+            <p className={cn('mt-1 text-[11px]', net >= 0 ? 'text-green-600' : 'text-red-500')}>
+              {net >= 0 ? '+' : ''}{formatAmount(net, currency)} {isZh ? '净余' : 'net'}
+            </p>
           </div>
-          <p className="text-lg md:text-xl font-bold text-green-500">{formatAmount(income, currency)}</p>
         </div>
+      </div>
 
-        <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-primary/10 p-4">
-          <div className="flex items-center gap-2 mb-2">
+      {/* Secondary stats (smaller) */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 p-4 border border-primary/20">
+          <div className="flex items-center gap-2 mb-1.5">
             <Wallet className="h-4 w-4 text-primary" />
-            <span className="text-xs text-muted-foreground">{isZh ? '净余' : 'Net'}</span>
+            <span className="text-xs text-muted-foreground">{isZh ? '净余额' : 'Net Balance'}</span>
           </div>
-          <p className={cn('text-lg md:text-xl font-bold', net >= 0 ? 'text-primary' : 'text-red-500')}>
+          <p className={cn('text-xl font-bold tabular-nums', net >= 0 ? 'text-primary' : 'text-red-500')}>
             {net >= 0 ? '+' : ''}{formatAmount(net, currency)}
           </p>
         </div>
 
-        <div className="rounded-xl border bg-gradient-to-br from-amber-500/5 to-amber-500/10 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar className="h-4 w-4 text-amber-500" />
+        <div className="rounded-2xl bg-gradient-to-br from-amber-100/50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-900/20 p-4 border border-amber-200/50 dark:border-amber-900/30">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Calendar className="h-4 w-4 text-amber-600" />
             <span className="text-xs text-muted-foreground">{isZh ? '日均支出' : 'Daily Avg'}</span>
           </div>
-          <p className="text-lg md:text-xl font-bold text-amber-500">{formatAmount(dailyAvg, currency)}</p>
+          <p className="text-xl font-bold text-amber-600 tabular-nums">{formatAmount(dailyAvg, currency)}</p>
         </div>
       </div>
 
