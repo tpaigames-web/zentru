@@ -3,26 +3,27 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  /* Warm cozy theme — inspired by MeowoZhangZhang */
+  --background: 36 50% 97%;           /* Soft cream */
+  --foreground: 20 20% 15%;            /* Dark brown-ish */
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
-  --radius: 0.5rem;
+  --card-foreground: 20 20% 15%;
+  --popover: 36 50% 97%;
+  --popover-foreground: 20 20% 15%;
+  --primary: 28 85% 60%;               /* Warm orange */
+  --primary-foreground: 36 50% 97%;
+  --secondary: 36 40% 93%;             /* Light cream */
+  --secondary-foreground: 20 20% 15%;
+  --muted: 36 30% 92%;
+  --muted-foreground: 25 15% 45%;
+  --accent: 36 60% 90%;
+  --accent-foreground: 20 20% 15%;
+  --destructive: 0 70% 55%;
+  --destructive-foreground: 36 50% 97%;
+  --border: 36 30% 88%;
+  --input: 36 30% 88%;
+  --ring: 28 85% 60%;
+  --radius: 1rem;                      /* More rounded for cuteness */
   --success: 142.1 76.2% 36.3%;
   --success-foreground: 355.7 100% 97.3%;
   --warning: 38 92% 50%;

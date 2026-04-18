@@ -149,31 +149,60 @@ export default function TransactionsPage() {
           <p className="text-sm text-muted-foreground">{t('transactions.noTransactions')}</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {grouped.map(([dateKey, txs]) => (
+        <div className="space-y-5">
+          {grouped.map(([dateKey, txs]) => {
+            // Day totals
+            const dayIncome = txs.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+            const dayExpense = txs.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+
+            return (
             <div key={dateKey}>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                {formatDate(txs[0].date, 'PPP', i18n.language)}
-              </p>
-              <div className="rounded-xl border bg-card shadow-sm divide-y">
+              {/* Day header with totals */}
+              <div className="mb-2 flex items-center justify-between px-1">
+                <p className="text-sm font-semibold">
+                  {formatDate(txs[0].date, 'PPP', i18n.language)}
+                </p>
+                <div className="flex items-center gap-3 text-xs">
+                  {dayIncome > 0 && (
+                    <span className="text-success font-medium">+{formatAmount(dayIncome, txs[0].currency)}</span>
+                  )}
+                  {dayExpense > 0 && (
+                    <span className="text-destructive font-medium">-{formatAmount(dayExpense, txs[0].currency)}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Transaction pills */}
+              <div className="space-y-2">
                 {txs.map((tx) => {
                   const cat = categoryMap.get(tx.categoryId)
                   const card = tx.cardId ? cardMap.get(tx.cardId) : null
                   const account = tx.accountId ? accountMap.get(tx.accountId) : null
                   const paymentName = card?.name || account?.name
+                  const color = cat?.color || '#94a3b8'
+                  const time = new Date(tx.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+
                   return (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => {
-                      if (bulkMode) {
-                        setSelectedIds(prev => {
-                          const next = new Set(prev)
-                          if (next.has(tx.id)) next.delete(tx.id)
-                          else next.add(tx.id)
-                          return next
-                        })
-                      } else {
-                        setEditingTx(tx)
-                      }
-                    }}>
+                    <div
+                      key={tx.id}
+                      className={cn(
+                        'flex items-center gap-3 rounded-2xl px-3 py-2.5 cursor-pointer transition-all',
+                        'hover:scale-[1.01] active:scale-[0.99]'
+                      )}
+                      style={{ backgroundColor: color + '15' }}
+                      onClick={() => {
+                        if (bulkMode) {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev)
+                            if (next.has(tx.id)) next.delete(tx.id)
+                            else next.add(tx.id)
+                            return next
+                          })
+                        } else {
+                          setEditingTx(tx)
+                        }
+                      }}
+                    >
                       {bulkMode && (
                         <div className={cn(
                           'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
@@ -182,32 +211,35 @@ export default function TransactionsPage() {
                           {selectedIds.has(tx.id) && <CheckSquare className="h-3.5 w-3.5" />}
                         </div>
                       )}
-                      {cat && (
-                        <div
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                          style={{ backgroundColor: cat.color + '20' }}
-                        >
-                          <CategoryIcon name={cat.icon} className="h-5 w-5" style={{ color: cat.color }} />
-                        </div>
-                      )}
+                      {/* Colored icon */}
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: color + '30' }}
+                      >
+                        <CategoryIcon name={cat?.icon || 'MoreHorizontal'} className="h-5 w-5" style={{ color }} />
+                      </div>
+                      {/* Merchant + meta */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {cat ? (cat.nameKey ? t(cat.nameKey) : cat.name) : t('common.noData')}
+                        <p className="text-sm font-semibold truncate" style={{ color: 'hsl(var(--foreground))' }}>
+                          {tx.merchant || (cat ? (cat.nameKey ? t(cat.nameKey) : cat.name) : t('common.noData'))}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {[tx.merchant, paymentName].filter(Boolean).join(' · ') || tx.notes || ''}
+                        <p className="text-xs truncate" style={{ color, opacity: 0.8 }}>
+                          {time}
+                          {paymentName && ` · ${paymentName}`}
+                          {cat && tx.merchant && ` · ${cat.nameKey ? t(cat.nameKey) : cat.name}`}
                         </p>
                       </div>
+                      {/* Amount */}
                       <div className="text-right shrink-0">
                         <span className={cn(
-                          'text-sm font-semibold whitespace-nowrap',
-                          tx.type === 'income' ? 'text-success' : 'text-foreground',
-                      )}>
-                        {tx.type === 'income' ? '+' : '-'}{formatAmount(tx.amount, tx.currency)}
-                      </span>
-                      {tx.cashbackAmount ? (
-                        <p className="text-xs text-success">+{formatAmount(tx.cashbackAmount, tx.currency)} cb</p>
-                      ) : null}
+                          'text-base font-bold whitespace-nowrap tabular-nums',
+                          tx.type === 'income' ? 'text-success' : '',
+                        )} style={tx.type === 'expense' ? { color } : undefined}>
+                          {tx.type === 'income' ? '+' : '-'}{formatAmount(tx.amount, tx.currency)}
+                        </span>
+                        {tx.cashbackAmount ? (
+                          <p className="text-[10px] text-success font-medium">+{formatAmount(tx.cashbackAmount, tx.currency)} cb</p>
+                        ) : null}
                       </div>
                       {!bulkMode && (
                         <button
@@ -222,7 +254,8 @@ export default function TransactionsPage() {
                 })}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
