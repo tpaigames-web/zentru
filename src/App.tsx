@@ -4,6 +4,7 @@ import { DataProvider } from '@/data/DataProvider'
 import { seedDefaultCategories } from '@/data/seed'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ModuleGuard } from '@/components/ModuleGuard'
+import { AdminGuard } from '@/components/AdminGuard'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserStore } from '@/stores/useUserStore'
 import { useModulesStore } from '@/stores/useModulesStore'
@@ -30,6 +31,25 @@ const SettingsPage = lazy(() => import('@/pages/Settings'))
 const AboutPage = lazy(() => import('@/pages/Settings/About'))
 const PrivacyPolicyPage = lazy(() => import('@/pages/Settings/PrivacyPolicy'))
 const UICustomizePage = lazy(() => import('@/pages/Settings/UICustomize'))
+
+// Admin pages (lazy loaded)
+const AdminLayout = lazy(() => import('@/pages/Admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminDashboard = lazy(() => import('@/pages/Admin/Dashboard'))
+const AdminUsers = lazy(() => import('@/pages/Admin/Users'))
+const AdminModules = lazy(() => import('@/pages/Admin/Modules'))
+const AdminRoles = lazy(() => import('@/pages/Admin/Roles'))
+const AdminAuditLog = lazy(() => import('@/pages/Admin/AuditLog'))
+const AdminPlaceholderComponent = lazy(() => import('@/pages/Admin/Placeholder').then(m => ({ default: () => {
+  const path = window.location.pathname
+  const titles: Record<string, string> = {
+    '/internal/ops/samples': 'Sample Review',
+    '/internal/ops/versions': 'App Versions',
+    '/internal/ops/broadcasts': 'Broadcasts',
+    '/internal/ops/api-keys': 'API Keys',
+    '/internal/ops/revenue': 'Revenue',
+  }
+  return m.AdminPlaceholder({ title: titles[path] || 'Coming Soon' })
+} })))
 const LandingPage = lazy(() => import('@/pages/Landing'))
 const NotFoundPage = lazy(() => import('@/pages/NotFound'))
 
@@ -143,6 +163,21 @@ export default function App() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="landing" element={<LandingPage />} />
+
+            {/* Admin panel — requires admin role */}
+            <Route path="internal/ops" element={<AdminGuard required="support"><AdminLayout /></AdminGuard>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="modules" element={<AdminGuard required="admin"><AdminModules /></AdminGuard>} />
+              <Route path="samples" element={<AdminPlaceholderComponent />} />
+              <Route path="versions" element={<AdminGuard required="super_admin"><AdminPlaceholderComponent /></AdminGuard>} />
+              <Route path="broadcasts" element={<AdminPlaceholderComponent />} />
+              <Route path="audit" element={<AdminGuard required="super_admin"><AdminAuditLog /></AdminGuard>} />
+              <Route path="roles" element={<AdminGuard required="super_admin"><AdminRoles /></AdminGuard>} />
+              <Route path="api-keys" element={<AdminGuard required="super_admin"><AdminPlaceholderComponent /></AdminGuard>} />
+              <Route path="revenue" element={<AdminPlaceholderComponent />} />
+            </Route>
+
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="cards" element={<CardsPage />} />
