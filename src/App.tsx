@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { ModuleGuard } from '@/components/ModuleGuard'
 import { AdminGuard } from '@/components/AdminGuard'
 import { UpdateModal } from '@/components/shared/UpdateModal'
+import { UpdateBanner } from '@/components/shared/UpdateBanner'
 import { checkForUpdate, type VersionCheckResult } from '@/services/versionCheck'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserStore } from '@/stores/useUserStore'
@@ -13,27 +14,29 @@ import { useModulesStore } from '@/stores/useModulesStore'
 
 // Lazy load all pages — each becomes a separate chunk
 /**
- * Safe lazy wrapper: auto-reloads page on chunk load failure.
- * Happens when user has old service worker cache but new deploy
- * removed the old chunk file names.
+ * Safe lazy wrapper: retries failed chunks without forcing reload.
+ *
+ * Old behavior (removed): auto-cleared caches + reloaded → interrupted users.
+ * New behavior: retry once with cache-busting query string. If that fails,
+ * throw so the ErrorBoundary shows a "Clear Cache & Reload" prompt the
+ * USER controls, preserving their in-progress work.
  */
-const RELOAD_KEY = 'zentru-chunk-reload-attempted'
 function safeLazy<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
-  return lazy(() =>
-    loader().catch((err) => {
-      console.error('Lazy chunk failed:', err)
-      // Prevent reload loop: only auto-reload once per session
-      if (!sessionStorage.getItem(RELOAD_KEY)) {
-        sessionStorage.setItem(RELOAD_KEY, '1')
-        // Clear caches and reload
-        if ('caches' in window) {
-          caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)))
-        }
-        setTimeout(() => window.location.reload(), 100)
+  return lazy(async () => {
+    try {
+      return await loader()
+    } catch (err) {
+      console.warn('Lazy chunk failed, retrying:', err)
+      // Wait a moment then retry once — often resolves transient network hiccups
+      await new Promise((r) => setTimeout(r, 500))
+      try {
+        return await loader()
+      } catch (err2) {
+        console.error('Lazy chunk failed after retry:', err2)
+        throw err2
       }
-      throw err
-    })
-  )
+    }
+  })
 }
 
 const LoginPage = safeLazy(() => import('@/pages/Auth/LoginPage'))
@@ -246,7 +249,9 @@ export default function App() {
 
   return (
     <DataProvider>
-      {/* Optional update banner (dismissible) */}
+      {/* Non-blocking SW update banner — user decides when to reload */}
+      <UpdateBanner />
+      {/* Optional APK update banner (dismissible) */}
       {updateCheck?.action === 'optional' && !updateDismissed && (
         <UpdateModal result={updateCheck} onDismiss={() => setUpdateDismissed(true)} />
       )}

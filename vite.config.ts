@@ -14,8 +14,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
-      // Force new SW to take over immediately (skip waiting)
+      // 'prompt' = new SW installs but waits. We show a banner and user
+      // decides when to reload. Prevents mid-task refresh surprise.
+      registerType: 'prompt',
       selfDestroying: false,
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
@@ -50,9 +51,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        // Force new SW to activate immediately, don't wait for tabs to close
-        skipWaiting: true,
-        clientsClaim: true,
+        // Don't force-activate new SW — wait for user to trigger reload via banner
+        // Prevents mid-operation data loss from surprise refresh
+        skipWaiting: false,
+        clientsClaim: false,
         // Clean up old caches from previous versions
         cleanupOutdatedCaches: true,
       },

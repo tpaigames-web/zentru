@@ -5,42 +5,25 @@ import '@/config/i18n'
 import './index.css'
 import App from './App'
 
-// ---- Cache-busting version check ----
-// Build timestamp is injected at build time. If it changes,
-// old service workers and caches are purged automatically.
+// ---- Build version tracking (for debug only, NOT for forced reload) ----
+// Previous implementation auto-reloaded on version mismatch, which caused
+// users to lose in-progress work whenever a new deploy was detected.
+// Now we just log the version; actual updates are handled by UpdateBanner
+// via vite-plugin-pwa's `registerType: 'prompt'` + user confirmation.
 const APP_VERSION = __APP_VERSION__
-
 const STORED_VERSION_KEY = 'zentru-app-version'
-const storedVersion = localStorage.getItem(STORED_VERSION_KEY)
-
-if (storedVersion && storedVersion !== APP_VERSION) {
-  // Version mismatch — purge all caches and service workers, then reload
-  console.log(`App updated: ${storedVersion} → ${APP_VERSION}. Clearing caches...`)
-  localStorage.setItem(STORED_VERSION_KEY, APP_VERSION)
-
-  // Clear all caches
-  if ('caches' in window) {
-    caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)))
+try {
+  const stored = localStorage.getItem(STORED_VERSION_KEY)
+  if (stored && stored !== APP_VERSION) {
+    console.log(`App version changed: ${stored} → ${APP_VERSION}`)
   }
-  // Unregister all service workers
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((regs) => {
-      regs.forEach((r) => r.unregister())
-    })
-  }
-  // Reload after a short delay to let cleanup finish
-  setTimeout(() => window.location.reload(), 300)
-} else {
-  // Store current version
   localStorage.setItem(STORED_VERSION_KEY, APP_VERSION)
-}
+} catch {}
 
-// Auto-update: when new service worker takes control, reload
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload()
-  })
-}
+// NOTE: We deliberately do NOT listen for `controllerchange` to auto-reload.
+// A forced reload on SW takeover would interrupt users mid-task.
+// Instead, the UpdateBanner component uses `registerSW()` to prompt user
+// with a dismissible banner, and reload only on explicit user action.
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
