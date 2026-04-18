@@ -9,6 +9,9 @@ interface UserProfile {
   displayName: string
   plan: 'free' | 'premium'
   planExpiresAt: string | null
+  trialEndsAt: string | null
+  trialStartedAt: string | null
+  role: 'user' | 'support' | 'admin' | 'super_admin'
 }
 
 interface UserState {
@@ -16,6 +19,8 @@ interface UserState {
   profile: UserProfile | null
   loading: boolean
   isPremium: boolean
+  isInTrial: boolean
+  trialDaysLeft: number
 
   initialize: () => Promise<void>
   signUp: (email: string, password: string) => Promise<{ error?: string; alreadyExists?: boolean }>
@@ -31,6 +36,8 @@ export const useUserStore = create<UserState>()((set, get) => ({
   profile: null,
   loading: true,
   isPremium: false,
+  isInTrial: false,
+  trialDaysLeft: 0,
 
   initialize: async () => {
     if (!isSupabaseConfigured) {
@@ -71,7 +78,7 @@ export const useUserStore = create<UserState>()((set, get) => ({
           }
         }
       } else {
-        set({ user: null, profile: null, isPremium: false })
+        set({ user: null, profile: null, isPremium: false, isInTrial: false, trialDaysLeft: 0 })
       }
     })
   },
@@ -130,7 +137,7 @@ export const useUserStore = create<UserState>()((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut()
-    set({ user: null, profile: null, isPremium: false })
+    set({ user: null, profile: null, isPremium: false, isInTrial: false, trialDaysLeft: 0 })
   },
 
   refreshProfile: async () => {
@@ -146,7 +153,14 @@ export const useUserStore = create<UserState>()((set, get) => ({
     if (data) {
       const now = new Date()
       const expiresAt = data.plan_expires_at ? new Date(data.plan_expires_at) : null
-      const isPremium = data.plan === 'premium' && (!expiresAt || expiresAt > now)
+      const trialEndsAt = data.trial_ends_at ? new Date(data.trial_ends_at) : null
+      const isPaidPremium = data.plan === 'premium' && (!expiresAt || expiresAt > now)
+      const isInTrial = !!(trialEndsAt && trialEndsAt > now)
+      const isPremium = isPaidPremium || isInTrial
+
+      const trialDaysLeft = trialEndsAt
+        ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+        : 0
 
       set({
         profile: {
@@ -155,8 +169,13 @@ export const useUserStore = create<UserState>()((set, get) => ({
           displayName: data.display_name,
           plan: data.plan,
           planExpiresAt: data.plan_expires_at,
+          trialEndsAt: data.trial_ends_at,
+          trialStartedAt: data.trial_started_at,
+          role: data.role || 'user',
         },
         isPremium,
+        isInTrial,
+        trialDaysLeft,
       })
     }
   },

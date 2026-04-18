@@ -29,6 +29,7 @@ const ImportPage = lazy(() => import('@/pages/Import'))
 const SettingsPage = lazy(() => import('@/pages/Settings'))
 const AboutPage = lazy(() => import('@/pages/Settings/About'))
 const PrivacyPolicyPage = lazy(() => import('@/pages/Settings/PrivacyPolicy'))
+const UICustomizePage = lazy(() => import('@/pages/Settings/UICustomize'))
 const LandingPage = lazy(() => import('@/pages/Landing'))
 const NotFoundPage = lazy(() => import('@/pages/NotFound'))
 
@@ -159,6 +160,7 @@ export default function App() {
               <Route path="payment-methods" element={<PaymentMethodsPage />} />
               <Route path="import" element={<ImportPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/ui-customize" element={<UICustomizePage />} />
               <Route path="about" element={<AboutPage />} />
               <Route path="privacy" element={<PrivacyPolicyPage />} />
               <Route path="*" element={<NotFoundPage />} />

@@ -5,7 +5,7 @@ import {
   Moon, Sun, Globe, ChevronRight, DollarSign, Bell, Lock, LogOut,
   Cloud, CloudUpload, CloudDownload, Loader2, User, Crown, Info,
   FileSpreadsheet, Download, Upload, Database, FolderSync,
-  Tags, Wallet, CalendarClock,
+  Tags, Wallet, CalendarClock, Layers,
 } from 'lucide-react'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
@@ -263,6 +263,17 @@ export default function SettingsPage() {
 
       {/* ============ SECTION: Manage ============ */}
       <div className="rounded-xl border bg-card shadow-sm">
+        <button onClick={() => navigate('/settings/ui-customize')} className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-accent transition-colors">
+          <div className="flex items-center gap-3">
+            <Layers className="h-5 w-5 text-primary" />
+            <div>
+              <span className="text-sm font-medium">{isZh ? '界面定制' : 'UI Customize'}</span>
+              <p className="text-xs text-muted-foreground">{isZh ? '选择场景预设或自定义模块' : 'Choose preset or customize modules'}</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+        <div className="mx-4 border-t" />
         <button onClick={() => navigate('/categories')} className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-accent transition-colors">
           <div className="flex items-center gap-3">
             <Tags className="h-5 w-5 text-primary" />

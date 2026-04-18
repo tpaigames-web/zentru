@@ -10,6 +10,7 @@ import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
+import { TrialBanner } from '@/components/shared/TrialBanner'
 import { getTaxSummary } from '@/services/taxDeduction'
 import { generateQuickTemplates, getStreak, detectRecurringPatterns } from '@/services/quickEntry'
 import { generateInsights } from '@/services/insights'
@@ -65,6 +66,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      {/* Trial banner (only shows when relevant) */}
+      <TrialBanner />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{t('dashboard.title')}</h2>

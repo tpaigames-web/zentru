@@ -5,11 +5,11 @@ import { useTransactionStore } from '@/stores/useTransactionStore'
 const FREE_LIMITS = {
   maxCards: 2,
   maxTransactionsPerMonth: 75,
-  maxPdfImportsPerMonth: 2,
+  maxImportsPerMonth: 2, // Any import (PDF/Image/CSV) counts
 }
 
 export function usePremium() {
-  const { isPremium, user } = useUserStore()
+  const { isPremium, isInTrial, trialDaysLeft, user, profile } = useUserStore()
   const { cards } = useCardStore()
   const { transactions } = useTransactionStore()
 
@@ -18,6 +18,8 @@ export function usePremium() {
   if (!user && skipAuth) {
     return {
       isPremium: true, // local mode = no limits
+      isInTrial: false,
+      trialDaysLeft: 0,
       canAddCard: true,
       canAddTransaction: true,
       canImportPdf: true,
@@ -26,37 +28,47 @@ export function usePremium() {
       canExportData: true,
       canSync: false,
       limits: FREE_LIMITS,
-      usage: { cards: cards.length, monthlyTx: 0, monthlyPdfImports: 0 },
+      usage: { cards: cards.length, monthlyTx: 0, monthlyImports: 0 },
     }
   }
+
+  // Premium access = paid OR in trial
+  const hasPremiumAccess = isPremium // isPremium already includes trial
 
   // Count this month's transactions
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
   const monthlyTx = transactions.filter((tx) => tx.date >= monthStart).length
 
-  // PDF imports count (stored in localStorage for simplicity)
-  const pdfKey = `zentru-pdf-imports-${now.getFullYear()}-${now.getMonth() + 1}`
-  const monthlyPdfImports = parseInt(localStorage.getItem(pdfKey) || '0')
+  // Import counts (stored in localStorage)
+  const importKey = `zentru-imports-${now.getFullYear()}-${now.getMonth() + 1}`
+  const monthlyImports = parseInt(localStorage.getItem(importKey) || '0')
 
   return {
-    isPremium,
-    canAddCard: isPremium || cards.length < FREE_LIMITS.maxCards,
-    canAddTransaction: isPremium || monthlyTx < FREE_LIMITS.maxTransactionsPerMonth,
-    canImportPdf: isPremium || monthlyPdfImports < FREE_LIMITS.maxPdfImportsPerMonth,
-    canAccessAnalytics: isPremium, // only Overview + Expense for free
-    canAccessSmartCard: isPremium,
-    canExportData: isPremium,
-    canSync: isPremium,
+    isPremium: hasPremiumAccess,
+    isInTrial,
+    trialDaysLeft,
+    role: profile?.role || 'user',
+    canAddCard: hasPremiumAccess || cards.length < FREE_LIMITS.maxCards,
+    canAddTransaction: hasPremiumAccess || monthlyTx < FREE_LIMITS.maxTransactionsPerMonth,
+    canImportPdf: hasPremiumAccess || monthlyImports < FREE_LIMITS.maxImportsPerMonth,
+    canImport: hasPremiumAccess || monthlyImports < FREE_LIMITS.maxImportsPerMonth,
+    canAccessAnalytics: hasPremiumAccess, // only Overview + Expense + Income for free
+    canAccessSmartCard: hasPremiumAccess,
+    canExportData: hasPremiumAccess,
+    canSync: !!user, // All logged-in users get sync (per plan)
     limits: FREE_LIMITS,
-    usage: { cards: cards.length, monthlyTx, monthlyPdfImports },
+    usage: { cards: cards.length, monthlyTx, monthlyImports },
   }
 }
 
-/** Call after a successful PDF import */
-export function incrementPdfImportCount() {
+/** Call after a successful import of any type (PDF/Image/CSV) */
+export function incrementImportCount() {
   const now = new Date()
-  const key = `zentru-pdf-imports-${now.getFullYear()}-${now.getMonth() + 1}`
+  const key = `zentru-imports-${now.getFullYear()}-${now.getMonth() + 1}`
   const count = parseInt(localStorage.getItem(key) || '0')
   localStorage.setItem(key, String(count + 1))
 }
+
+/** Backward-compat alias */
+export const incrementPdfImportCount = incrementImportCount
