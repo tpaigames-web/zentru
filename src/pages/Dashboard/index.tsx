@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Plus, CreditCard, Smartphone, CheckCircle2, Circle, FileText, X } from 'lucide-react'
 import { formatAmount } from '@/lib/currency'
-import { formatDate, getMonthRange, getDaysUntilDue } from '@/lib/date'
+import { formatDate, getDaysUntilDue } from '@/lib/date'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useCardStore } from '@/stores/useCardStore'
 import { useTransactionStore } from '@/stores/useTransactionStore'
@@ -11,6 +11,7 @@ import { useCategoryStore } from '@/stores/useCategoryStore'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { CategoryIcon } from '@/components/shared/CategoryIcon'
 import { TrialBanner } from '@/components/shared/TrialBanner'
+import { OverviewSection } from '@/components/dashboard/OverviewSection'
 import { getTaxSummary } from '@/services/taxDeduction'
 import { generateQuickTemplates, getStreak, detectRecurringPatterns } from '@/services/quickEntry'
 import { generateInsights } from '@/services/insights'
@@ -34,11 +35,6 @@ export default function DashboardPage() {
   const [guideDismissed, setGuideDismissed] = useState(false)
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
-  const { start, end } = getMonthRange()
-  const monthlyTx = useMemo(() => transactions.filter((tx) => tx.date >= start && tx.date <= end), [transactions, start, end])
-
-  const monthlyExpense = monthlyTx.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
-  const monthlyIncome = monthlyTx.filter((tx) => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
 
   // Cards due in next 10 days
   const upcoming10 = useMemo(() => {
@@ -190,17 +186,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Monthly summary — compact */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl border bg-card p-3 shadow-sm">
-          <p className="text-[10px] text-muted-foreground">{t('dashboard.monthlyExpense')}</p>
-          <p className="text-lg font-bold text-destructive">{formatAmount(monthlyExpense, currency)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-3 shadow-sm">
-          <p className="text-[10px] text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
-          <p className="text-lg font-bold text-success">{formatAmount(monthlyIncome, currency)}</p>
-        </div>
-      </div>
+      {/* New Overview section with date range, stats, trend, top categories/merchants */}
+      <OverviewSection />
 
       {/* Next 10 Day's Payables — like Finory */}
       {upcoming10.length > 0 && (
