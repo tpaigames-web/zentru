@@ -157,7 +157,7 @@ export function OverviewSection() {
       </div>
 
       {/* Hero: Big expense + income like MeowoZhangZhang */}
-      <div className="rounded-3xl bg-gradient-to-br from-orange-50 to-amber-50 dark:from-amber-950/30 dark:to-orange-950/30 p-6 border border-orange-100 dark:border-amber-900/50">
+      <div className="rounded-3xl bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 p-6 border border-orange-100 dark:border-orange-900/40">
         <div className="grid grid-cols-2 gap-6">
           <div>
             <div className="flex items-center gap-1.5 mb-2">
