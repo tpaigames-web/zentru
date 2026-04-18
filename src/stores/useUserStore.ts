@@ -79,6 +79,11 @@ export const useUserStore = create<UserState>()((set, get) => ({
         }
       } else {
         set({ user: null, profile: null, isPremium: false, isInTrial: false, trialDaysLeft: 0 })
+        // Clear modules cache on signout
+        try {
+          const { useModulesStore } = await import('@/stores/useModulesStore')
+          useModulesStore.getState().reset()
+        } catch {}
       }
     })
   },
@@ -138,6 +143,10 @@ export const useUserStore = create<UserState>()((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut()
     set({ user: null, profile: null, isPremium: false, isInTrial: false, trialDaysLeft: 0 })
+
+    // Clear cached data from other stores to prevent data leak between accounts
+    const { useModulesStore } = await import('@/stores/useModulesStore')
+    useModulesStore.getState().reset()
   },
 
   refreshProfile: async () => {
