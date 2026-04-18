@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck, Mail, CheckCircle2, AlertTriangle, FileSpreadsheet } from 'lucide-react'
+import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck, Mail, CheckCircle2, AlertTriangle, FileSpreadsheet, Image as ImageIcon, Camera, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { parseStatement, extractPdfText, sanitizeForSample, type ParsedStatement, type ParsedTransaction } from '@/services/pdfParser'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
@@ -8,6 +8,7 @@ import { parseCSV } from '@/services/csvParser'
 import { autoDetectCategory } from '@/services/autoCategory'
 import { matchCardProduct } from '@/config/cardCatalog'
 import { calculateCashback } from '@/services/cashback'
+import { scanReceiptFromFile, type ScannedReceiptData } from '@/services/receiptScanner'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
@@ -25,7 +26,21 @@ const verifiedBanks = ALL_BANKS.filter((b) => b.supportLevel === 'verified')
 const partialBanks = ALL_BANKS.filter((b) => b.supportLevel === 'partial')
 
 type ImportStep = 'upload' | 'preview' | 'done'
-type ImportMode = 'pdf' | 'csv'
+type ImportMode = 'pdf' | 'csv' | 'image'
+
+interface PendingReceipt {
+  file: File
+  preview: string
+  scan?: ScannedReceiptData
+  amount: string
+  merchant: string
+  date: string
+  categoryId: string
+  cardId: string
+  notes: string
+  status: 'scanning' | 'ready' | 'error'
+  error?: string
+}
 
 interface MergedTransaction extends ParsedTransaction {
   sourceFile: string
@@ -43,7 +58,9 @@ export default function ImportPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<ImportMode>('pdf')
+  const [receipts, setReceipts] = useState<PendingReceipt[]>([])
   const [step, setStep] = useState<ImportStep>('upload')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
@@ -347,6 +364,129 @@ export default function ImportPage() {
     }
   }
 
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    e.target.value = '' // reset so same file can be re-selected
+
+    const allCategories = [...expenseCategories, ...useCategoryStore.getState().getIncomeCategories()]
+    const fallbackCatId = defaultCategoryId
+
+    // Add placeholders for each file
+    const newReceipts: PendingReceipt[] = []
+    for (const file of Array.from(files)) {
+      const preview = URL.createObjectURL(file)
+      newReceipts.push({
+        file,
+        preview,
+        amount: '',
+        merchant: '',
+        date: new Date().toISOString().slice(0, 10),
+        categoryId: fallbackCatId,
+        cardId: '',
+        notes: '',
+        status: 'scanning',
+      })
+    }
+    setReceipts((prev) => [...prev, ...newReceipts])
+
+    // Scan each one (sequential to keep memory OK)
+    for (let i = 0; i < newReceipts.length; i++) {
+      const rec = newReceipts[i]
+      try {
+        const scan = await scanReceiptFromFile(rec.file)
+        const detected = scan.merchant ? autoDetectCategory(scan.merchant, allCategories) : null
+        setReceipts((prev) =>
+          prev.map((r) =>
+            r.file === rec.file
+              ? {
+                  ...r,
+                  scan,
+                  amount: scan.totalAmount ? scan.totalAmount.toFixed(2) : '',
+                  merchant: scan.merchant || '',
+                  date: scan.date || r.date,
+                  categoryId: detected?.id || fallbackCatId,
+                  notes: scan.invoiceNo ? `Invoice: ${scan.invoiceNo}` : '',
+                  status: 'ready',
+                }
+              : r
+          )
+        )
+      } catch (err) {
+        setReceipts((prev) =>
+          prev.map((r) =>
+            r.file === rec.file
+              ? { ...r, status: 'error', error: err instanceof Error ? err.message : 'OCR failed' }
+              : r
+          )
+        )
+      }
+    }
+  }
+
+  const updateReceipt = (idx: number, patch: Partial<PendingReceipt>) => {
+    setReceipts((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  const removeReceipt = (idx: number) => {
+    setReceipts((prev) => {
+      const target = prev[idx]
+      if (target) URL.revokeObjectURL(target.preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
+  const handleImageImport = async () => {
+    const ready = receipts.filter((r) => r.status === 'ready' && parseFloat(r.amount) > 0)
+    if (ready.length === 0) {
+      setError(i18n.language.startsWith('zh') ? '没有可导入的收据' : 'No receipts ready to import')
+      return
+    }
+    setIsLoading(true)
+    let count = 0
+    for (const rec of ready) {
+      const amt = parseFloat(rec.amount)
+      if (!amt || amt <= 0) continue
+      const card = rec.cardId ? cards.find((c) => c.id === rec.cardId) : undefined
+      let cashbackAmount: number | undefined
+      let cashbackRate: number | undefined
+      if (card?.cashbackRules?.length) {
+        const cb = calculateCashback(
+          { type: 'expense', amount: amt, categoryId: rec.categoryId, cardId: card.id } as Parameters<typeof calculateCashback>[0],
+          card,
+          new Map(),
+          0,
+        )
+        if (cb.amount > 0) {
+          cashbackAmount = cb.amount
+          cashbackRate = cb.rate
+        }
+      }
+      await addTransaction({
+        type: 'expense',
+        amount: amt,
+        currency,
+        categoryId: rec.categoryId,
+        accountId: '',
+        cardId: rec.cardId || undefined,
+        date: new Date(rec.date).getTime(),
+        merchant: rec.merchant || undefined,
+        notes: rec.notes || `Scanned receipt: ${rec.file.name}`,
+        cashbackAmount,
+        cashbackRate,
+        isConfirmed: true,
+        importSource: 'manual',
+      })
+      count++
+    }
+    // Cleanup preview URLs
+    receipts.forEach((r) => URL.revokeObjectURL(r.preview))
+    setReceipts([])
+    setImportedCount(count)
+    setStep('done')
+    setIsLoading(false)
+  }
+
   const handleImport = async () => {
     if (mergedTx.length === 0) return
     setIsLoading(true)
@@ -474,6 +614,13 @@ export default function ImportPage() {
             <FileSpreadsheet className="h-3.5 w-3.5" />
             {t('import.tabCsv')}
           </button>
+          <button
+            onClick={() => { setMode('image'); setError('') }}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors', mode === 'image' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            {i18n.language.startsWith('zh') ? '收据图片' : 'Receipt'}
+          </button>
         </div>
       )}
 
@@ -597,6 +744,177 @@ export default function ImportPage() {
               <span className="text-sm">{t('import.parsing')}</span>
             </div>
           )}
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step: Upload — Image/Receipt OCR */}
+      {step === 'upload' && mode === 'image' && (
+        <div className="space-y-4">
+          <div
+            onClick={() => imageInputRef.current?.click()}
+            className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-10 hover:border-primary/50 hover:bg-accent/30 transition-colors"
+          >
+            <Camera className="mb-3 h-10 w-10 text-primary/40" />
+            <p className="text-sm font-medium">
+              {i18n.language.startsWith('zh') ? '上传收据照片' : 'Upload receipt photo'}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground text-center px-4">
+              {i18n.language.startsWith('zh')
+                ? '支持多张 · 自动识别金额/商家/日期（需手动确认）'
+                : 'Multiple allowed · Auto-detect amount/merchant/date (confirm manually)'}
+            </p>
+          </div>
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleImageSelect}
+          />
+
+          {receipts.length > 0 && (
+            <div className="space-y-3">
+              {receipts.map((rec, idx) => (
+                <div key={idx} className="rounded-xl border bg-card p-3 shadow-sm">
+                  <div className="flex gap-3">
+                    <img
+                      src={rec.preview}
+                      alt="receipt"
+                      className="h-20 w-20 rounded-lg object-cover border shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-medium truncate">{rec.file.name}</p>
+                        <button
+                          onClick={() => removeReceipt(idx)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {rec.status === 'scanning' && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <span>{i18n.language.startsWith('zh') ? '正在识别...' : 'Scanning...'}</span>
+                        </div>
+                      )}
+                      {rec.status === 'error' && (
+                        <p className="text-xs text-destructive">{rec.error}</p>
+                      )}
+                      {rec.status === 'ready' && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground">
+                              {i18n.language.startsWith('zh') ? '金额' : 'Amount'}
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={rec.amount}
+                              onChange={(e) => updateReceipt(idx, { amount: e.target.value })}
+                              className="w-full rounded-md border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground">
+                              {i18n.language.startsWith('zh') ? '日期' : 'Date'}
+                            </label>
+                            <input
+                              type="date"
+                              value={rec.date}
+                              onChange={(e) => updateReceipt(idx, { date: e.target.value })}
+                              className="w-full rounded-md border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-muted-foreground">
+                              {i18n.language.startsWith('zh') ? '商家' : 'Merchant'}
+                            </label>
+                            <input
+                              type="text"
+                              value={rec.merchant}
+                              onChange={(e) => updateReceipt(idx, { merchant: e.target.value })}
+                              className="w-full rounded-md border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                              placeholder={i18n.language.startsWith('zh') ? '商家名称' : 'Merchant name'}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground">
+                              {i18n.language.startsWith('zh') ? '类别' : 'Category'}
+                            </label>
+                            <select
+                              value={rec.categoryId}
+                              onChange={(e) => updateReceipt(idx, { categoryId: e.target.value })}
+                              className="w-full rounded-md border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                              {expenseCategories.filter((c) => c.isActive).map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.nameKey ? t(c.nameKey, { defaultValue: c.name }) : c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground">
+                              {i18n.language.startsWith('zh') ? '卡（可选）' : 'Card (optional)'}
+                            </label>
+                            <select
+                              value={rec.cardId}
+                              onChange={(e) => updateReceipt(idx, { cardId: e.target.value })}
+                              className="w-full rounded-md border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                              <option value="">
+                                {i18n.language.startsWith('zh') ? '无' : 'None'}
+                              </option>
+                              {cards.filter((c) => c.isActive).map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={handleImageImport}
+                disabled={
+                  isLoading ||
+                  !receipts.some((r) => r.status === 'ready' && parseFloat(r.amount) > 0)
+                }
+                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50 active:scale-95 transition-transform"
+              >
+                {isLoading
+                  ? (i18n.language.startsWith('zh') ? '导入中...' : 'Importing...')
+                  : (i18n.language.startsWith('zh')
+                      ? `导入 ${receipts.filter((r) => r.status === 'ready' && parseFloat(r.amount) > 0).length} 条`
+                      : `Import ${receipts.filter((r) => r.status === 'ready' && parseFloat(r.amount) > 0).length}`)}
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 rounded-xl border border-success/20 bg-success/5 px-4 py-3">
+            <ShieldCheck className="h-5 w-5 text-success shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              {i18n.language.startsWith('zh')
+                ? 'OCR 识别在设备本地运行，图片不会上传到服务器'
+                : 'OCR runs entirely on-device. Images never leave your phone.'}
+            </p>
+          </div>
 
           {error && (
             <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
