@@ -62,16 +62,43 @@ export const useUserStore = create<UserState>()((set, get) => ({
         set({ user: session.user })
         await get().refreshProfile()
 
-        // Auto-download data on sign-in (new device sync)
+        // Auto-download data on sign-in (ONLY if local has no unsynced changes
+        // AND local is empty — prevents overwriting user's unsaved work)
         if (event === 'SIGNED_IN') {
           try {
+            const { hasUnsyncedLocalChanges } = await import('@/hooks/useAutoSync')
+
+            // If user has pending local changes, upload them first instead of downloading
+            if (hasUnsyncedLocalChanges()) {
+              console.log('Local has unsynced changes — uploading first, skipping download')
+              const { uploadAllData } = await import('@/services/syncService')
+              const upResult = await uploadAllData(session.user.id)
+              if (upResult.success) {
+                const { markCloudSynced } = await import('@/hooks/useAutoSync')
+                markCloudSynced()
+              }
+              return
+            }
+
+            // Check if local is empty before pulling cloud
+            const { db } = await import('@/data/dexie/DexieDatabase')
+            const localCounts = await Promise.all([
+              db.transactions.count(),
+              db.cards.count(),
+            ])
+            const localIsEmpty = localCounts.every((c) => c === 0)
+
             const hasData = await hasRemoteData(session.user.id)
-            if (hasData) {
-              console.log('Auto-syncing data from cloud...')
+            if (hasData && localIsEmpty) {
+              console.log('Local empty + cloud has data → downloading...')
               const result = await downloadAllData(session.user.id)
               if (result.success) {
+                const { markCloudSynced } = await import('@/hooks/useAutoSync')
+                markCloudSynced()
                 console.log('Cloud data synced successfully')
               }
+            } else if (!localIsEmpty) {
+              console.log('Local has data — skipping auto-download (user can manual download from Settings)')
             }
           } catch (e) {
             console.warn('Auto-sync failed (non-critical):', e)
