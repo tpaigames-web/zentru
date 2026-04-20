@@ -68,6 +68,8 @@ export default function ImportPage() {
   const [ocrEngine, setOcrEngine] = useState<'local' | 'ai'>('local')
   const aiQuota = useAiScanQuota()
   const { isPremium } = usePremium()
+  /** Full-size lightbox viewer for clicked receipt thumbnails */
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null)
   const [step, setStep] = useState<ImportStep>('upload')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
@@ -372,15 +374,9 @@ export default function ImportPage() {
   }
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // eslint-disable-next-line no-console
-    console.log('[Zentru] handleImageSelect fired. files:', e.target.files?.length, 'engine:', ocrEngine)
     const files = e.target.files
-    if (!files || files.length === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[Zentru] No files selected, aborting')
-      return
-    }
-    // Snapshot files array immediately — React event pooling / input reset can lose them
+    if (!files || files.length === 0) return
+    // Snapshot files immediately — input reset later would lose them
     const fileList = Array.from(files)
     e.target.value = '' // reset so same file can be re-selected
 
@@ -403,8 +399,6 @@ export default function ImportPage() {
         status: 'scanning',
       })
     }
-    // eslint-disable-next-line no-console
-    console.log('[Zentru] Adding', newReceipts.length, 'receipts to state')
     setReceipts((prev) => [...prev, ...newReceipts])
 
     // Track whether we've fallen back to local for this batch
@@ -441,6 +435,17 @@ export default function ImportPage() {
           scan = await scanReceiptFromFile(rec.file)
         }
 
+        // Resolve amount: prefer totalAmount; if missing, sum line items
+        let resolvedAmount = scan.totalAmount
+        let amountFromItems = false
+        if (!resolvedAmount && Array.isArray(scan.items) && scan.items.length > 0) {
+          const sum = scan.items.reduce((s, it) => s + (Number(it.amount) || 0), 0)
+          if (sum > 0) {
+            resolvedAmount = Math.round(sum * 100) / 100
+            amountFromItems = true
+          }
+        }
+
         const detected = scan.merchant ? autoDetectCategory(scan.merchant, allCategories) : null
         setReceipts((prev) =>
           prev.map((r) =>
@@ -448,13 +453,14 @@ export default function ImportPage() {
               ? {
                   ...r,
                   scan,
-                  amount: scan.totalAmount ? scan.totalAmount.toFixed(2) : '',
+                  amount: resolvedAmount ? resolvedAmount.toFixed(2) : '',
                   merchant: scan.merchant || '',
                   date: scan.date || r.date,
                   categoryId: detected?.id || fallbackCatId,
                   notes: [
                     scan.invoiceNo ? `Invoice: ${scan.invoiceNo}` : '',
                     usedEngine === 'ai' ? '🤖 AI' : '',
+                    amountFromItems ? (i18n.language.startsWith('zh') ? '金额=明细合计' : 'Σ items') : '',
                   ].filter(Boolean).join(' · '),
                   status: 'ready',
                 }
@@ -870,11 +876,7 @@ export default function ImportPage() {
           </div>
 
           <div
-            onClick={() => {
-              // eslint-disable-next-line no-console
-              console.log('[Zentru] Upload area clicked. input ref:', imageInputRef.current)
-              imageInputRef.current?.click()
-            }}
+            onClick={() => imageInputRef.current?.click()}
             className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-10 hover:border-primary/50 hover:bg-accent/30 transition-colors"
           >
             <Camera className="mb-3 h-10 w-10 text-primary/40" />
@@ -902,11 +904,23 @@ export default function ImportPage() {
               {receipts.map((rec, idx) => (
                 <div key={idx} className="rounded-xl border bg-card p-3 shadow-sm">
                   <div className="flex gap-3">
-                    <img
-                      src={rec.preview}
-                      alt="receipt"
-                      className="h-20 w-20 rounded-lg object-cover border shrink-0"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setZoomedImage(rec.preview)}
+                      title={i18n.language.startsWith('zh') ? '点击放大查看' : 'Click to zoom'}
+                      className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border group active:scale-95 transition-transform"
+                    >
+                      <img
+                        src={rec.preview}
+                        alt="receipt"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+                        <span className="text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                          🔍 {i18n.language.startsWith('zh') ? '放大' : 'Zoom'}
+                        </span>
+                      </div>
+                    </button>
                     <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-medium truncate">{rec.file.name}</p>
@@ -1206,6 +1220,31 @@ export default function ImportPage() {
               {t('import.viewTransactions')}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Receipt image lightbox (zoom viewer) */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out animate-in fade-in"
+          onClick={() => setZoomedImage(null)}
+        >
+          <img
+            src={zoomedImage}
+            alt="receipt full"
+            className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-4 right-4 rounded-full bg-white/10 backdrop-blur-sm p-2 text-white hover:bg-white/20 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/60">
+            {i18n.language.startsWith('zh') ? '点击空白处关闭' : 'Click anywhere to close'}
+          </p>
         </div>
       )}
     </div>
