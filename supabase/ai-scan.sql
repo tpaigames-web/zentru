@@ -1,138 +1,101 @@
--- AI Receipt Scan Quota (v2 - fixed variable naming)
--- Run this in Supabase SQL Editor after `schema.sql` and `trial-system.sql`
---
--- Adds monthly AI scan quota tracking on the existing `usage` table.
--- Free users get 3 scans/month, Premium get 100, admins unlimited.
+-- AI Receipt Scan Quota (v3 - SQL-based, no plpgsql variable pitfalls)
+-- Run the entire file at once in Supabase SQL Editor.
 
--- 1. Add the counter column ----------------------------------------------------
-ALTER TABLE usage
+-- 1. Add the counter column ---------------------------------------------------
+ALTER TABLE public.usage
   ADD COLUMN IF NOT EXISTS ai_scans_count INTEGER NOT NULL DEFAULT 0;
 
--- 2. Drop old versions if previous attempt partially succeeded ----------------
-DROP FUNCTION IF EXISTS consume_ai_scan_quota();
-DROP FUNCTION IF EXISTS get_ai_scan_remaining();
+-- 2. Clean slate (in case previous runs partially succeeded) ------------------
+DROP FUNCTION IF EXISTS public.consume_ai_scan_quota();
+DROP FUNCTION IF EXISTS public.get_ai_scan_remaining();
+DROP FUNCTION IF EXISTS public.ai_scan_quota_for(UUID);
 
--- 3. Helper RPC: check quota + consume in one call -----------------------------
--- Returns (allowed, remaining, limit_value)
--- SECURITY DEFINER so it can write to usage regardless of RLS context; we
--- derive user_id from auth.uid() inside to prevent spoofing.
-CREATE OR REPLACE FUNCTION consume_ai_scan_quota()
+-- 3. Internal helper — compute quota info for a given user --------------------
+-- Plain SQL function: no DECLARE, no assignments, no pragmas = no parser edge cases.
+CREATE FUNCTION public.ai_scan_quota_for(p_uid UUID)
+RETURNS TABLE(quota_limit INTEGER, used INTEGER)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    CASE
+      WHEN pr.role IN ('admin', 'super_admin', 'support') THEN 99999
+      WHEN pr.plan = 'premium'
+           AND (pr.plan_expires_at IS NULL OR pr.plan_expires_at > NOW())
+        THEN 100
+      ELSE 3
+    END                                                 AS quota_limit,
+    COALESCE(
+      (SELECT u.ai_scans_count
+         FROM public.usage u
+        WHERE u.user_id = p_uid
+          AND u.month   = to_char(NOW(), 'YYYY-MM')),
+      0
+    )                                                   AS used
+  FROM public.profiles pr
+  WHERE pr.id = p_uid;
+$$;
+
+-- 4. Read-only quota check ----------------------------------------------------
+CREATE FUNCTION public.get_ai_scan_remaining()
+RETURNS TABLE(remaining INTEGER, limit_value INTEGER, used INTEGER)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    GREATEST(q.quota_limit - q.used, 0) AS remaining,
+    q.quota_limit                        AS limit_value,
+    q.used                               AS used
+  FROM public.ai_scan_quota_for(auth.uid()) q;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_ai_scan_remaining() TO authenticated;
+
+-- 5. Consume-one helper (needs plpgsql for conditional INSERT+UPDATE) ---------
+-- This one is plpgsql but extremely minimal — no variable assignments,
+-- everything driven off a subquery result.
+CREATE FUNCTION public.consume_ai_scan_quota()
 RETURNS TABLE(allowed BOOLEAN, remaining INTEGER, limit_value INTEGER)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $func$
-#variable_conflict use_variable
-DECLARE
-  uid            UUID         := auth.uid();
-  user_plan      TEXT;
-  plan_exp       TIMESTAMPTZ;
-  user_role      TEXT;
-  ym             TEXT         := to_char(NOW(), 'YYYY-MM');
-  cur_count      INTEGER;
-  quota_limit    INTEGER;
-  is_prem        BOOLEAN;
+AS $$
 BEGIN
-  IF uid IS NULL THEN
-    RAISE EXCEPTION 'Not authenticated';
+  -- Require auth
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
   END IF;
 
-  -- 1) Read plan + role from profiles (table-qualified to avoid any conflict)
-  SELECT p.plan, p.plan_expires_at, p.role
-    INTO user_plan, plan_exp, user_role
-    FROM public.profiles AS p
-   WHERE p.id = uid;
-
-  -- 2) Determine tier and quota
-  -- Admin / support / super_admin = unlimited
-  IF user_role IN ('admin', 'super_admin', 'support') THEN
-    RETURN QUERY SELECT TRUE, 99999, 99999;
-    RETURN;
-  END IF;
-
-  -- Active premium (permanent OR not yet expired)
-  is_prem := (user_plan = 'premium')
-             AND (plan_exp IS NULL OR plan_exp > NOW());
-
-  quota_limit := CASE WHEN is_prem THEN 100 ELSE 3 END;
-
-  -- 3) Fetch or insert current month row
+  -- Ensure the monthly row exists
   INSERT INTO public.usage (user_id, month, ai_scans_count)
-  VALUES (uid, ym, 0)
+  VALUES (auth.uid(), to_char(NOW(), 'YYYY-MM'), 0)
   ON CONFLICT (user_id, month) DO NOTHING;
 
-  SELECT u.ai_scans_count INTO cur_count
-    FROM public.usage AS u
-   WHERE u.user_id = uid AND u.month = ym;
-
-  IF cur_count IS NULL THEN
-    cur_count := 0;
-  END IF;
-
-  -- 4) Quota check
-  IF cur_count >= quota_limit THEN
-    RETURN QUERY SELECT FALSE, 0, quota_limit;
-    RETURN;
-  END IF;
-
-  -- 5) Consume
-  UPDATE public.usage
-     SET ai_scans_count = ai_scans_count + 1
-   WHERE user_id = uid AND month = ym;
-
-  RETURN QUERY SELECT TRUE, (quota_limit - cur_count - 1), quota_limit;
+  -- Attempt to consume one in a single atomic UPDATE
+  -- (RETURNING so we know whether it actually happened)
+  RETURN QUERY
+  WITH q AS (
+    SELECT * FROM public.ai_scan_quota_for(auth.uid())
+  ),
+  updated AS (
+    UPDATE public.usage u
+       SET ai_scans_count = u.ai_scans_count + 1
+     WHERE u.user_id = auth.uid()
+       AND u.month   = to_char(NOW(), 'YYYY-MM')
+       AND u.ai_scans_count < (SELECT quota_limit FROM q)
+    RETURNING u.ai_scans_count
+  )
+  SELECT
+    (SELECT count(*) FROM updated) > 0          AS allowed,
+    GREATEST(
+      (SELECT quota_limit FROM q)
+        - COALESCE((SELECT ai_scans_count FROM updated), (SELECT used FROM q)),
+      0
+    )                                           AS remaining,
+    (SELECT quota_limit FROM q)                 AS limit_value;
 END;
-$func$;
+$$;
 
-GRANT EXECUTE ON FUNCTION consume_ai_scan_quota() TO authenticated;
-
--- 4. Read-only helper: get current remaining without consuming ----------------
-CREATE OR REPLACE FUNCTION get_ai_scan_remaining()
-RETURNS TABLE(remaining INTEGER, limit_value INTEGER, used INTEGER)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $func$
-#variable_conflict use_variable
-DECLARE
-  uid            UUID         := auth.uid();
-  user_plan      TEXT;
-  plan_exp       TIMESTAMPTZ;
-  user_role      TEXT;
-  ym             TEXT         := to_char(NOW(), 'YYYY-MM');
-  cur_count      INTEGER      := 0;
-  quota_limit    INTEGER;
-  is_prem        BOOLEAN;
-BEGIN
-  IF uid IS NULL THEN
-    RAISE EXCEPTION 'Not authenticated';
-  END IF;
-
-  SELECT p.plan, p.plan_expires_at, p.role
-    INTO user_plan, plan_exp, user_role
-    FROM public.profiles AS p
-   WHERE p.id = uid;
-
-  IF user_role IN ('admin', 'super_admin', 'support') THEN
-    RETURN QUERY SELECT 99999, 99999, 0;
-    RETURN;
-  END IF;
-
-  is_prem := (user_plan = 'premium')
-             AND (plan_exp IS NULL OR plan_exp > NOW());
-
-  quota_limit := CASE WHEN is_prem THEN 100 ELSE 3 END;
-
-  SELECT COALESCE(u.ai_scans_count, 0) INTO cur_count
-    FROM public.usage AS u
-   WHERE u.user_id = uid AND u.month = ym;
-
-  IF cur_count IS NULL THEN
-    cur_count := 0;
-  END IF;
-
-  RETURN QUERY SELECT GREATEST(quota_limit - cur_count, 0), quota_limit, cur_count;
-END;
-$func$;
-
-GRANT EXECUTE ON FUNCTION get_ai_scan_remaining() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_ai_scan_quota() TO authenticated;
