@@ -372,8 +372,16 @@ export default function ImportPage() {
   }
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // eslint-disable-next-line no-console
+    console.log('[Zentru] handleImageSelect fired. files:', e.target.files?.length, 'engine:', ocrEngine)
     const files = e.target.files
-    if (!files || files.length === 0) return
+    if (!files || files.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[Zentru] No files selected, aborting')
+      return
+    }
+    // Snapshot files array immediately — React event pooling / input reset can lose them
+    const fileList = Array.from(files)
     e.target.value = '' // reset so same file can be re-selected
 
     const allCategories = [...expenseCategories, ...useCategoryStore.getState().getIncomeCategories()]
@@ -381,7 +389,7 @@ export default function ImportPage() {
 
     // Add placeholders for each file
     const newReceipts: PendingReceipt[] = []
-    for (const file of Array.from(files)) {
+    for (const file of fileList) {
       const preview = URL.createObjectURL(file)
       newReceipts.push({
         file,
@@ -395,6 +403,8 @@ export default function ImportPage() {
         status: 'scanning',
       })
     }
+    // eslint-disable-next-line no-console
+    console.log('[Zentru] Adding', newReceipts.length, 'receipts to state')
     setReceipts((prev) => [...prev, ...newReceipts])
 
     // Track whether we've fallen back to local for this batch
@@ -860,7 +870,11 @@ export default function ImportPage() {
           </div>
 
           <div
-            onClick={() => imageInputRef.current?.click()}
+            onClick={() => {
+              // eslint-disable-next-line no-console
+              console.log('[Zentru] Upload area clicked. input ref:', imageInputRef.current)
+              imageInputRef.current?.click()
+            }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-10 hover:border-primary/50 hover:bg-accent/30 transition-colors"
           >
             <Camera className="mb-3 h-10 w-10 text-primary/40" />
