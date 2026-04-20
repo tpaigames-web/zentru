@@ -20,8 +20,11 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// gemini-1.5-flash was retired in 2025. Use the current stable flash model.
+// `gemini-flash-latest` auto-tracks the newest Flash release.
+// If you want to pin a specific version, swap to `gemini-2.0-flash`.
 const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
 
 const EXTRACTION_PROMPT = `You are a Malaysian receipt and e-invoice OCR expert.
 Extract structured data from the attached receipt image.
