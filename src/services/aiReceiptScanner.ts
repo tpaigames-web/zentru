@@ -40,16 +40,69 @@ export async function getAiScanRemaining(): Promise<{
 }
 
 /**
+ * Downscale a large image File to max MAX_EDGE px on the longest side,
+ * then re-encode as JPEG at 0.85 quality. Dramatically cuts upload time
+ * and Gemini processing time.
+ *
+ * Most phone receipt photos are 3000-4000 px wide (~4MB); we bring them
+ * down to 1600 px (~300-500 KB) with no meaningful quality loss for OCR.
+ */
+async function resizeImage(file: File): Promise<{ base64: string; mimeType: string }> {
+  const MAX_EDGE = 1600
+  const QUALITY = 0.85
+
+  // Read as image
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const el = new Image()
+    el.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(el)
+    }
+    el.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Image decode failed'))
+    }
+    el.src = url
+  })
+
+  // Compute target dims preserving aspect ratio
+  const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height))
+  const w = Math.round(img.width * scale)
+  const h = Math.round(img.height * scale)
+
+  // Draw on canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context unavailable')
+  ctx.drawImage(img, 0, 0, w, h)
+
+  // Encode as JPEG
+  const dataUrl = canvas.toDataURL('image/jpeg', QUALITY)
+  const match = dataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/)
+  if (!match) throw new Error('Canvas export failed')
+  return { mimeType: match[1], base64: match[2] }
+}
+
+/**
  * Convert a File or base64 data URL to raw base64 + mimeType.
+ * Files are auto-downsized to ≤1600px for fast upload.
  */
 async function toBase64(input: File | string): Promise<{ base64: string; mimeType: string }> {
   if (typeof input === 'string') {
-    // Assume it's already a data URL like "data:image/jpeg;base64,XXXX"
     const match = input.match(/^data:(image\/[^;]+);base64,(.+)$/)
-    if (!match) {
-      throw new Error('Expected data URL format: data:image/...;base64,...')
-    }
+    if (!match) throw new Error('Expected data URL format: data:image/...;base64,...')
     return { mimeType: match[1], base64: match[2] }
+  }
+  // Only resize images; fall back to raw read if canvas fails
+  if (input.type.startsWith('image/')) {
+    try {
+      return await resizeImage(input)
+    } catch (e) {
+      console.warn('Image resize failed, sending original:', e)
+    }
   }
   return await new Promise<{ base64: string; mimeType: string }>((resolve, reject) => {
     const reader = new FileReader()
