@@ -74,31 +74,42 @@ serve(async (req: Request) => {
   }
 
   const authHeader = req.headers.get('Authorization') || ''
+  console.log('[scan-receipt] auth header present:', authHeader.slice(0, 20) + '...')
+
   if (!authHeader.startsWith('Bearer ')) {
-    return jsonResponse({ error: 'unauthorized' }, 401)
+    console.warn('[scan-receipt] no Bearer token — rejecting')
+    return jsonResponse({ error: 'unauthorized', reason: 'missing_bearer' }, 401)
   }
+  const jwt = authHeader.slice('Bearer '.length).trim()
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
   const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
   const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('[scan-receipt] missing SUPABASE_URL/ANON_KEY env')
     return jsonResponse({ error: 'server_misconfigured_supabase' }, 500)
   }
   if (!GEMINI_API_KEY) {
+    console.error('[scan-receipt] missing GEMINI_API_KEY env')
     return jsonResponse({ error: 'server_misconfigured_gemini' }, 500)
   }
 
-  // Supabase client with caller's JWT so RLS + auth.uid() work
+  // Verify JWT with explicit token (most reliable pattern in Edge Functions)
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { headers: { Authorization: authHeader } },
   })
+  const { data: userData, error: userErr } = await supabase.auth.getUser(jwt)
 
-  // Verify auth
-  const { data: userData, error: userErr } = await supabase.auth.getUser()
   if (userErr || !userData?.user) {
-    return jsonResponse({ error: 'unauthorized' }, 401)
+    console.warn('[scan-receipt] getUser failed:', userErr?.message || 'no user')
+    return jsonResponse(
+      { error: 'unauthorized', reason: userErr?.message || 'no_user', jwtPreview: jwt.slice(0, 30) + '...' },
+      401,
+    )
   }
+  console.log('[scan-receipt] authed user:', userData.user.id, userData.user.email)
 
   // Parse body
   let body: { imageBase64?: string; mimeType?: string }
