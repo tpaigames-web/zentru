@@ -20,11 +20,11 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// gemini-1.5-flash was retired in 2025. Use the current stable flash model.
-// `gemini-flash-latest` auto-tracks the newest Flash release.
-// If you want to pin a specific version, swap to `gemini-2.0-flash`.
+// gemini-1.5-flash was retired in 2025. Pin to an explicit fast, cheap model.
+// gemini-2.0-flash-lite: ~1-2s per image, $0.075/$0.30 per M tokens
+// If OCR quality insufficient, fall back to `gemini-2.0-flash`.
 const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
 
 const EXTRACTION_PROMPT = `You are a Malaysian receipt and e-invoice OCR expert.
 Extract structured data from the attached receipt image.
@@ -150,9 +150,13 @@ serve(async (req: Request) => {
   // Strip data URL prefix if the client included it
   const base64Body = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64
 
-  // Call Gemini
+  // Call Gemini with 30s server-side timeout (AbortController)
   let geminiResult: unknown
+  const controller = new AbortController()
+  const abortTimer = setTimeout(() => controller.abort(), 30000)
+  const geminiStart = Date.now()
   try {
+    console.log('[scan-receipt] calling Gemini with model gemini-2.0-flash-lite')
     const resp = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -171,19 +175,22 @@ serve(async (req: Request) => {
           maxOutputTokens: 1024,
         },
       }),
+      signal: controller.signal,
     })
+    clearTimeout(abortTimer)
+    console.log('[scan-receipt] Gemini responded in', Date.now() - geminiStart, 'ms status', resp.status)
 
     if (!resp.ok) {
       const errText = await resp.text()
       console.error('gemini error:', resp.status, errText)
-      // Don't refund the quota on upstream error — next attempt would double-charge
-      // Instead log and return a generic error. Admin can manually grant scans if needed.
-      return jsonResponse({ error: 'ai_provider_error', status: resp.status }, 502)
+      return jsonResponse({ error: 'ai_provider_error', status: resp.status, detail: errText.slice(0, 200) }, 502)
     }
     geminiResult = await resp.json()
   } catch (e) {
-    console.error('gemini fetch failed:', e)
-    return jsonResponse({ error: 'ai_fetch_failed' }, 502)
+    clearTimeout(abortTimer)
+    const isAbort = (e as Error)?.name === 'AbortError'
+    console.error('gemini fetch failed:', isAbort ? 'timeout(30s)' : (e as Error)?.message)
+    return jsonResponse({ error: isAbort ? 'ai_timeout' : 'ai_fetch_failed', elapsed: Date.now() - geminiStart }, 504)
   }
 
   // Extract model text (should be JSON string per response_mime_type)
