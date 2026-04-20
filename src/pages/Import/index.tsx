@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, Check, AlertCircle, ArrowLeft, ShieldCheck, Mail, CheckCircle2, AlertTriangle, FileSpreadsheet, Image as ImageIcon, Camera, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
@@ -43,6 +43,10 @@ interface PendingReceipt {
   notes: string
   status: 'scanning' | 'ready' | 'error'
   error?: string
+  /** Epoch ms when scan started — used to show elapsed time */
+  scanStartedAt?: number
+  /** Current stage for progress display */
+  scanStage?: 'uploading' | 'analyzing' | 'parsing'
 }
 
 interface MergedTransaction extends ParsedTransaction {
@@ -70,6 +74,14 @@ export default function ImportPage() {
   const { isPremium } = usePremium()
   /** Full-size lightbox viewer for clicked receipt thumbnails */
   const [zoomedImage, setZoomedImage] = useState<string | null>(null)
+  /** Tick counter — forces re-render every second while any receipt is scanning */
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const anyScanning = receipts.some((r) => r.status === 'scanning')
+    if (!anyScanning) return
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [receipts])
   const [step, setStep] = useState<ImportStep>('upload')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
@@ -397,6 +409,8 @@ export default function ImportPage() {
         cardId: '',
         notes: '',
         status: 'scanning',
+        scanStartedAt: Date.now(),
+        scanStage: ocrEngine === 'ai' ? 'uploading' : 'parsing',
       })
     }
     setReceipts((prev) => [...prev, ...newReceipts])
@@ -412,21 +426,31 @@ export default function ImportPage() {
         let scan: ScannedReceiptData
         let usedEngine: 'local' | 'ai' = 'local'
 
+        // Advance stage to 'analyzing' after ~500ms of upload
+        const stageTimer = setTimeout(() => {
+          setReceipts((prev) =>
+            prev.map((r) => (r.file === rec.file ? { ...r, scanStage: 'analyzing' } : r)),
+          )
+        }, 500)
+
         if (ocrEngine === 'ai' && !aiExhausted) {
           try {
-            const aiResult = await scanReceiptWithAI(rec.file)
+            // Hard 60s timeout so UI never hangs indefinitely
+            const aiResult = await Promise.race([
+              scanReceiptWithAI(rec.file),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('AI scan timeout (60s)')), 60000),
+              ),
+            ])
             scan = aiResult
             usedEngine = 'ai'
-            // refresh the displayed quota counter
             aiQuota.refresh()
           } catch (aiErr) {
             if (aiErr instanceof AIQuotaExceededError) {
-              // Fall back silently to Tesseract for remaining receipts
               aiExhausted = true
               console.warn('AI quota exceeded, falling back to local OCR')
               scan = await scanReceiptFromFile(rec.file)
             } else {
-              // Any other AI error: try local once, else surface error
               console.warn('AI scan failed, falling back to local:', aiErr)
               scan = await scanReceiptFromFile(rec.file)
             }
@@ -434,6 +458,8 @@ export default function ImportPage() {
         } else {
           scan = await scanReceiptFromFile(rec.file)
         }
+
+        clearTimeout(stageTimer)
 
         // Resolve amount: prefer totalAmount; if missing, sum line items
         let resolvedAmount = scan.totalAmount
@@ -931,12 +957,44 @@ export default function ImportPage() {
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      {rec.status === 'scanning' && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                          <span>{i18n.language.startsWith('zh') ? '正在识别...' : 'Scanning...'}</span>
-                        </div>
-                      )}
+                      {rec.status === 'scanning' && (() => {
+                        const elapsed = rec.scanStartedAt
+                          ? Math.floor((Date.now() - rec.scanStartedAt) / 1000)
+                          : 0
+                        const stageLabel =
+                          rec.scanStage === 'uploading'
+                            ? (i18n.language.startsWith('zh') ? '上传图片...' : 'Uploading...')
+                            : rec.scanStage === 'analyzing'
+                              ? (i18n.language.startsWith('zh') ? 'AI 分析中...' : 'AI analyzing...')
+                              : (i18n.language.startsWith('zh') ? '正在识别...' : 'Scanning...')
+                        // Indeterminate-ish progress (estimated): AI ~5s, Tesseract ~15s
+                        const estTotal = ocrEngine === 'ai' ? 8 : 20
+                        const pct = Math.min((elapsed / estTotal) * 100, 95)
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                <span>{stageLabel}</span>
+                              </div>
+                              <span className="tabular-nums text-[10px]">{elapsed}s</span>
+                            </div>
+                            <div className="h-1 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            {elapsed > 30 && (
+                              <p className="text-[10px] text-warning">
+                                {i18n.language.startsWith('zh')
+                                  ? '⚠️ 比平常慢，请稍候…（60s 后自动放弃并切换本地识别）'
+                                  : '⚠️ Slower than usual... (will fall back to local after 60s)'}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })()}
                       {rec.status === 'error' && (
                         <p className="text-xs text-destructive">{rec.error}</p>
                       )}
