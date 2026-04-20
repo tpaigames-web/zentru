@@ -9,6 +9,9 @@ import { autoDetectCategory } from '@/services/autoCategory'
 import { matchCardProduct } from '@/config/cardCatalog'
 import { calculateCashback } from '@/services/cashback'
 import { scanReceiptFromFile, type ScannedReceiptData } from '@/services/receiptScanner'
+import { scanReceiptWithAI, AIQuotaExceededError } from '@/services/aiReceiptScanner'
+import { useAiScanQuota } from '@/hooks/useAiScanQuota'
+import { usePremium } from '@/hooks/usePremium'
 import { useTransactionStore } from '@/stores/useTransactionStore'
 import { useCardStore } from '@/stores/useCardStore'
 import { useCategoryStore } from '@/stores/useCategoryStore'
@@ -61,6 +64,10 @@ export default function ImportPage() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<ImportMode>('pdf')
   const [receipts, setReceipts] = useState<PendingReceipt[]>([])
+  /** OCR engine for receipt tab: 'local' (Tesseract, free) | 'ai' (Gemini, quota) */
+  const [ocrEngine, setOcrEngine] = useState<'local' | 'ai'>('local')
+  const aiQuota = useAiScanQuota()
+  const { isPremium } = usePremium()
   const [step, setStep] = useState<ImportStep>('upload')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
@@ -390,11 +397,40 @@ export default function ImportPage() {
     }
     setReceipts((prev) => [...prev, ...newReceipts])
 
-    // Scan each one (sequential to keep memory OK)
+    // Track whether we've fallen back to local for this batch
+    // (avoid re-trying AI once the user's quota is exhausted mid-batch)
+    let aiExhausted = ocrEngine !== 'ai'
+
+    // Scan each one (sequential to keep memory OK and quota accurate)
     for (let i = 0; i < newReceipts.length; i++) {
       const rec = newReceipts[i]
       try {
-        const scan = await scanReceiptFromFile(rec.file)
+        let scan: ScannedReceiptData
+        let usedEngine: 'local' | 'ai' = 'local'
+
+        if (ocrEngine === 'ai' && !aiExhausted) {
+          try {
+            const aiResult = await scanReceiptWithAI(rec.file)
+            scan = aiResult
+            usedEngine = 'ai'
+            // refresh the displayed quota counter
+            aiQuota.refresh()
+          } catch (aiErr) {
+            if (aiErr instanceof AIQuotaExceededError) {
+              // Fall back silently to Tesseract for remaining receipts
+              aiExhausted = true
+              console.warn('AI quota exceeded, falling back to local OCR')
+              scan = await scanReceiptFromFile(rec.file)
+            } else {
+              // Any other AI error: try local once, else surface error
+              console.warn('AI scan failed, falling back to local:', aiErr)
+              scan = await scanReceiptFromFile(rec.file)
+            }
+          }
+        } else {
+          scan = await scanReceiptFromFile(rec.file)
+        }
+
         const detected = scan.merchant ? autoDetectCategory(scan.merchant, allCategories) : null
         setReceipts((prev) =>
           prev.map((r) =>
@@ -406,7 +442,10 @@ export default function ImportPage() {
                   merchant: scan.merchant || '',
                   date: scan.date || r.date,
                   categoryId: detected?.id || fallbackCatId,
-                  notes: scan.invoiceNo ? `Invoice: ${scan.invoiceNo}` : '',
+                  notes: [
+                    scan.invoiceNo ? `Invoice: ${scan.invoiceNo}` : '',
+                    usedEngine === 'ai' ? '🤖 AI' : '',
+                  ].filter(Boolean).join(' · '),
                   status: 'ready',
                 }
               : r
@@ -421,6 +460,18 @@ export default function ImportPage() {
           )
         )
       }
+    }
+
+    // If user intended AI but quota ran out during the batch, let them know once
+    if (ocrEngine === 'ai' && aiExhausted && !isPremium) {
+      // Non-blocking toast-style alert (simple for now)
+      setTimeout(() => {
+        alert(
+          i18n.language.startsWith('zh')
+            ? 'AI 识别额度已用尽，剩余收据已用本地识别。升级 Premium 可获每月 100 次。'
+            : 'AI scan quota exhausted. Remaining receipts used local OCR. Upgrade to Premium for 100/month.',
+        )
+      }, 100)
     }
   }
 
@@ -757,6 +808,57 @@ export default function ImportPage() {
       {/* Step: Upload — Image/Receipt OCR */}
       {step === 'upload' && mode === 'image' && (
         <div className="space-y-4">
+          {/* OCR engine toggle */}
+          <div className="rounded-xl border bg-card p-3 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase text-muted-foreground mb-2">
+              {i18n.language.startsWith('zh') ? '识别引擎' : 'Recognition Engine'}
+            </p>
+            <div className="flex rounded-lg bg-muted p-0.5">
+              <button
+                onClick={() => setOcrEngine('local')}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+                  ocrEngine === 'local' ? 'bg-background shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                📱 {i18n.language.startsWith('zh') ? '本地识别 · 免费' : 'Local · Free'}
+              </button>
+              <button
+                onClick={() => setOcrEngine('ai')}
+                disabled={!aiQuota.canUse && !isPremium}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                  ocrEngine === 'ai' ? 'bg-background shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                🤖 {i18n.language.startsWith('zh') ? 'AI 精准' : 'AI Precise'}
+                {!aiQuota.loading && (
+                  <span className="ml-1 text-[10px] opacity-70">
+                    {isPremium && aiQuota.limit >= 99999
+                      ? '∞'
+                      : `${aiQuota.remaining}/${aiQuota.limit || '—'}`}
+                  </span>
+                )}
+              </button>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              {ocrEngine === 'local'
+                ? (i18n.language.startsWith('zh')
+                    ? '设备本地 OCR · 图片不上传 · 速度较慢'
+                    : 'On-device OCR · image stays local · slower')
+                : (i18n.language.startsWith('zh')
+                    ? `云端 AI 识别 · 准确度更高 · ${isPremium ? 'Premium 每月 100 次' : `本月剩余 ${aiQuota.remaining}/${aiQuota.limit}`}`
+                    : `Cloud AI · more accurate · ${isPremium ? 'Premium 100/mo' : `${aiQuota.remaining}/${aiQuota.limit} left this month`}`)}
+            </p>
+            {!isPremium && aiQuota.limit > 0 && aiQuota.remaining === 0 && (
+              <p className="mt-1.5 text-[10px] text-warning">
+                {i18n.language.startsWith('zh')
+                  ? '⚡ AI 额度已用尽 · 升级 Premium 获每月 100 次'
+                  : '⚡ AI quota exhausted · Upgrade to Premium for 100/month'}
+              </p>
+            )}
+          </div>
+
           <div
             onClick={() => imageInputRef.current?.click()}
             className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-card py-10 hover:border-primary/50 hover:bg-accent/30 transition-colors"
